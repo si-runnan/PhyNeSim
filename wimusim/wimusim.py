@@ -15,6 +15,7 @@ import torch
 from wimusim import consts as c
 from wimusim import utils
 from dataset_configs.h36m import consts as h36m_consts
+from dataset_configs.smpl import consts as smpl_consts
 
 
 class WIMUSim:
@@ -683,7 +684,7 @@ class WIMUSim:
         H,
         E=Environment(),
         device=None,
-        dataset_name: Literal["H3.6M", "RealWorld", None] = None,
+        dataset_name: Literal["H3.6M", "RealWorld", "SMPL", None] = None,
         realtime_sim=False,
         enable_translation=True,
         visualization_prec_level=25,
@@ -757,7 +758,10 @@ class WIMUSim:
         _default_imu_size = np.array([0.058, 0.058, 0.033])
         _default_imu_color = (249 / 255, 105 / 255, 14 / 255, 1.0)
 
-        self.joint_link_dict = h36m_consts.JOINT_WIMUSIM_LINK_DICT
+        if dataset_name == "SMPL":
+            self.joint_link_dict = smpl_consts.JOINT_WIMUSIM_LINK_DICT
+        else:
+            self.joint_link_dict = h36m_consts.JOINT_WIMUSIM_LINK_DICT
         self.imu_sizes = [_default_imu_size for _ in self.P.imu_names]
         self.imu_colors = [_default_imu_color for _ in self.P.imu_names]
         if dataset_name == "H3.6M":
@@ -869,6 +873,13 @@ class WIMUSim:
         convert_B_and_P
         :return:
         """
+        if self.dataset_name == "SMPL":
+            self._convert_BP_smpl()
+        else:
+            self._convert_BP_h36m()
+
+    def _convert_BP_h36m(self):
+        """Humanoid param conversion for H3.6M / RealWorld joint names."""
         # B params
         self.humanoid_params["torso_1"]["length"] = self.B.rp[("PELVIS", "BELLY")][2]
         self.humanoid_params["torso_2"]["length"] = self.B.rp[("BELLY", "NECK")][2]
@@ -905,6 +916,29 @@ class WIMUSim:
         self.humanoid_params["left_lowerleg"]["length"] = -self.B.rp[
             ("L_KNEE", "L_ANKLE")
         ][2]
+
+    def _convert_BP_smpl(self):
+        """Humanoid param conversion for SMPL joint names.
+
+        Uses torch.norm so bone-vector direction does not matter — both left
+        and right sides return positive lengths.
+        """
+        rp = self.B.rp
+        self.humanoid_params["torso_1"]["length"] = torch.norm(rp[("BASE",   "SPINE1")])
+        self.humanoid_params["torso_2"]["length"] = torch.norm(rp[("SPINE2", "SPINE3")])
+        self.humanoid_params["right_clavicle"]["length"] = torch.norm(rp[("R_COLLAR",   "R_SHOULDER")])
+        self.humanoid_params["right_upperarm"]["length"] = torch.norm(rp[("R_SHOULDER", "R_ELBOW")])
+        self.humanoid_params["right_lowerarm"]["length"] = torch.norm(rp[("R_ELBOW",    "R_WRIST")])
+        self.humanoid_params["left_clavicle"]["length"]  = torch.norm(rp[("L_COLLAR",   "L_SHOULDER")])
+        self.humanoid_params["left_upperarm"]["length"]  = torch.norm(rp[("L_SHOULDER", "L_ELBOW")])
+        self.humanoid_params["left_lowerarm"]["length"]  = torch.norm(rp[("L_ELBOW",    "L_WRIST")])
+        self.humanoid_params["pelvis"]["length"] = (
+            torch.norm(rp[("BASE", "R_HIP")]) + torch.norm(rp[("BASE", "L_HIP")])
+        ) * 0.75
+        self.humanoid_params["right_upperleg"]["length"] = torch.norm(rp[("R_HIP",  "R_KNEE")])
+        self.humanoid_params["right_lowerleg"]["length"] = torch.norm(rp[("R_KNEE", "R_ANKLE")])
+        self.humanoid_params["left_upperleg"]["length"]  = torch.norm(rp[("L_HIP",  "L_KNEE")])
+        self.humanoid_params["left_lowerleg"]["length"]  = torch.norm(rp[("L_KNEE", "L_ANKLE")])
 
     def run_visualization(
         self, pause: float = 0.0, record_video: bool = False, filepath: str = "out.mp4"

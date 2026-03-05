@@ -869,121 +869,42 @@ class WIMUSim:
         convert_B_and_P
         :return:
         """
-        # TODO: Implement this function
-        if self.dataset_name == "DigitDrawingDataset":
-            # NOTE: Currently, the y-axis of the R_CLAVICLE2R_SHOULDER is not reflected to the humanoid_params.
-            self.humanoid_params["torso_1"]["length"] = (
-                self.B.rp["PELVIS2R_CLAVICLE"][2] / 2.0
-            )
-            self.humanoid_params["torso_2"]["length"] = (
-                self.B.rp["PELVIS2R_CLAVICLE"][2] / 2.0
-            )
-            self.humanoid_params["right_clavicle"]["length"] = self.B.rp[
-                "R_CLAVICLE2R_SHOULDER"
-            ][0]
-            self.humanoid_params["right_upperarm"]["length"] = self.B.rp[
-                "R_SHOULDER2R_ELBOW"
-            ][0]
-
-            self.humanoid_params["torso"]["radius"] = self.P.rp["PELVIS2TRS"][1]
-            self.humanoid_params["right_upperarm"]["radius"] = self.P.rp[
-                "R_SHOULDER2RUA"
-            ][2]
-            self.humanoid_params["right_lowerarm"]["radius"] = self.P.rp["R_ELBOW2RWR"][
-                2
-            ]
-
-        elif self.dataset_name in ["REALDISP"]:
-            # B params
-            self.humanoid_params["torso_1"]["length"] = (
-                self.B.rp[("PELVIS", "R_CLAVICLE")][2] / 2.0
-            )
-            self.humanoid_params["torso_2"]["length"] = (
-                self.B.rp[("PELVIS", "R_CLAVICLE")][2] / 2.0
-            )
-            self.humanoid_params["right_clavicle"]["length"] = self.B.rp[
-                ("R_CLAVICLE", "R_SHOULDER")
-            ][0]
-            self.humanoid_params["right_upperarm"]["length"] = self.B.rp[
-                ("R_SHOULDER", "R_ELBOW")
-            ][0]
-            self.humanoid_params["left_clavicle"]["length"] = -self.B.rp[
-                ("L_CLAVICLE", "L_SHOULDER")
-            ][0]
-            self.humanoid_params["left_upperarm"]["length"] = -self.B.rp[
-                ("L_SHOULDER", "L_ELBOW")
-            ][0]
-            self.humanoid_params["pelvis"]["length"] = (
-                self.B.rp[("BASE", "R_HIP")][0] - self.B.rp[("BASE", "L_HIP")][0]
-            ) * 1.5
-            self.humanoid_params["right_upperleg"]["length"] = -self.B.rp[
-                ("R_HIP", "R_KNEE")
-            ][2]
-            self.humanoid_params["right_upperleg"]["length"] = -self.B.rp[
-                ("L_HIP", "L_KNEE")
-            ][2]
-
-            # P params
-            # TODO: Refactor this part. P shouldn't affect the humanoid's radius.
-            # self.humanoid_params["torso_1"]["radius"] = torch.tensor(0.05, device=self.device)  # -self.P.rp[("PELVIS", "BACK")][1]
-            self.humanoid_params["right_upperarm"]["radius"] = self.P.rp[
-                ("R_SHOULDER", "RUA")
-            ][2]
-            self.humanoid_params["right_lowerarm"]["radius"] = self.P.rp[("R_ELBOW", "RLA")][
-                2
-            ]
-            self.humanoid_params["left_upperarm"]["radius"] = self.P.rp[
-                ("L_SHOULDER", "LUA")
-            ][2]
-            self.humanoid_params["left_lowerarm"]["radius"] = self.P.rp[("L_ELBOW", "LLA")][
-                2
-            ]
-            self.humanoid_params["right_upperleg"]["radius"] = self.P.rp[("R_HIP", "RT")][1]
-            self.humanoid_params["right_lowerleg"]["radius"] = self.P.rp[("R_KNEE", "RC")][1]
-            self.humanoid_params["left_upperleg"]["radius"] = self.P.rp[("L_HIP", "LT")][1]
-            self.humanoid_params["left_lowerleg"]["radius"] = self.P.rp[("L_KNEE", "LC")][1]
-        # elif self.dataset_name in ["H3.6M"]:
-        else:
-            # B params
-            self.humanoid_params["torso_1"]["length"] = self.B.rp[("PELVIS", "BELLY")][
-                2
-            ]
-            self.humanoid_params["torso_2"]["length"] = self.B.rp[("BELLY", "NECK")][2]
-            self.humanoid_params["right_clavicle"]["length"] = self.B.rp[
-                ("R_CLAVICLE", "R_SHOULDER")
-            ][0]
-            self.humanoid_params["right_upperarm"]["length"] = self.B.rp[
-                ("R_SHOULDER", "R_ELBOW")
-            ][0]
-            self.humanoid_params["right_lowerarm"]["length"] = self.B.rp[
-                ("R_ELBOW", "R_WRIST")
-            ][0]
-            self.humanoid_params["left_clavicle"]["length"] = -self.B.rp[
-                ("L_CLAVICLE", "L_SHOULDER")
-            ][0]
-            self.humanoid_params["left_upperarm"]["length"] = -self.B.rp[
-                ("L_SHOULDER", "L_ELBOW")
-            ][0]
-            self.humanoid_params["left_lowerarm"]["length"] = -self.B.rp[
-                ("L_ELBOW", "L_WRIST")
-            ][0]
-            self.humanoid_params["pelvis"]["length"] = (
-                self.B.rp[("BASE", "R_HIP")][0] - self.B.rp[("BASE", "L_HIP")][0]
-            ) * 1.5
-            self.humanoid_params["right_upperleg"]["length"] = -self.B.rp[
-                ("R_HIP", "R_KNEE")
-            ][2]
-            self.humanoid_params["right_lowerleg"]["length"] = -self.B.rp[
-                ("R_KNEE", "R_ANKLE")
-            ][2]
-            self.humanoid_params["left_upperleg"]["length"] = -self.B.rp[
-                ("L_HIP", "L_KNEE")
-            ][2]
-            self.humanoid_params["left_lowerleg"]["length"] = -self.B.rp[
-                ("L_KNEE", "L_ANKLE")
-            ][2]
-        # else:
-        #     raise ValueError("Invalid dataset_name", self.dataset_name)
+        # B params
+        self.humanoid_params["torso_1"]["length"] = self.B.rp[("PELVIS", "BELLY")][2]
+        self.humanoid_params["torso_2"]["length"] = self.B.rp[("BELLY", "NECK")][2]
+        self.humanoid_params["right_clavicle"]["length"] = self.B.rp[
+            ("R_CLAVICLE", "R_SHOULDER")
+        ][0]
+        self.humanoid_params["right_upperarm"]["length"] = self.B.rp[
+            ("R_SHOULDER", "R_ELBOW")
+        ][0]
+        self.humanoid_params["right_lowerarm"]["length"] = self.B.rp[
+            ("R_ELBOW", "R_WRIST")
+        ][0]
+        self.humanoid_params["left_clavicle"]["length"] = -self.B.rp[
+            ("L_CLAVICLE", "L_SHOULDER")
+        ][0]
+        self.humanoid_params["left_upperarm"]["length"] = -self.B.rp[
+            ("L_SHOULDER", "L_ELBOW")
+        ][0]
+        self.humanoid_params["left_lowerarm"]["length"] = -self.B.rp[
+            ("L_ELBOW", "L_WRIST")
+        ][0]
+        self.humanoid_params["pelvis"]["length"] = (
+            self.B.rp[("BASE", "R_HIP")][0] - self.B.rp[("BASE", "L_HIP")][0]
+        ) * 1.5
+        self.humanoid_params["right_upperleg"]["length"] = -self.B.rp[
+            ("R_HIP", "R_KNEE")
+        ][2]
+        self.humanoid_params["right_lowerleg"]["length"] = -self.B.rp[
+            ("R_KNEE", "R_ANKLE")
+        ][2]
+        self.humanoid_params["left_upperleg"]["length"] = -self.B.rp[
+            ("L_HIP", "L_KNEE")
+        ][2]
+        self.humanoid_params["left_lowerleg"]["length"] = -self.B.rp[
+            ("L_KNEE", "L_ANKLE")
+        ][2]
 
     def run_visualization(
         self, pause: float = 0.0, record_video: bool = False, filepath: str = "out.mp4"

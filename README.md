@@ -154,11 +154,33 @@ movi/
 
 5 subjects, 13 IMUs, indoor lab setting.
 
-Download: https://cvssp.org/data/totalcapture/
+- Raw IMU data: https://cvssp.org/data/totalcapture/
+- SMPL fits (AMASS TotalCapture subset): https://amass.is.tue.mpg.de/
 
-> Note: SMPL fits are not included in the original release.
-> Obtain them by running SMPLify-X on the provided MoCap data,
-> then save as `{subject}/{activity}/smpl.npz` and `imu.pkl`.
+After downloading both, run the preprocessing script:
+
+```bash
+python -m dataset_configs.totalcapture.preprocess \
+    --tc_root    /data/TotalCapture \
+    --amass_root /data/AMASS/TotalCapture \
+    --output     /data/tc_processed
+```
+
+This converts AMASS SMPL fits + raw Xsens text files and writes:
+
+```
+tc_processed/
+    s1/
+        walking1/
+            smpl.npz   # betas (10,), global_orient (T,3,3), body_pose (T,23,3,3)
+            imu.pkl    # {imu_name: {'acc': (T,3), 'gyro': (T,3)}}
+        acting1/
+        ...
+    s2/
+    ...
+```
+
+Optional flags: `--subjects s1 s5`, `--activities walking1 acting1`, `--no_skip`.
 
 ### Test — EMDB
 
@@ -212,6 +234,37 @@ motions, sensor placements, and hardware characteristics.
 
 ---
 
+## Sample Rate Alignment
+
+Different sources run at different rates:
+
+| Source | SMPL rate | IMU rate |
+|--------|-----------|----------|
+| MoVi | 60 Hz | 100 Hz |
+| TotalCapture | 60 Hz | 60 Hz |
+| EMDB | 60 Hz | 60 Hz |
+| HMR2.0 (video) | 30 Hz | — |
+
+Use `pipeline/resample.py` to align them before feeding into WIMUSim:
+
+```python
+from pipeline.resample import align_to_smpl_rate
+
+# MoVi: downsample IMU 100 Hz → 60 Hz
+global_orient, body_pose, imu_dict, hz = align_to_smpl_rate(
+    global_orient, body_pose, imu_dict, smpl_hz=60, imu_hz=100
+)
+
+# Video (HMR2.0): upsample SMPL 30 Hz → 60 Hz, then downsample IMU
+global_orient, body_pose, imu_dict, hz = align_to_smpl_rate(
+    global_orient, body_pose, imu_dict, smpl_hz=60, imu_hz=100, video_hz=30
+)
+```
+
+SMPL rotation matrices are resampled with SLERP; IMU signals use linear interpolation.
+
+---
+
 ## Example Notebooks
 
 | Notebook | What it does |
@@ -219,6 +272,7 @@ motions, sensor placements, and hardware characteristics.
 | `examples/generate_D_from_3d_pose.ipynb` | Load MoVi SMPL data → simulate virtual IMU |
 | `examples/parameter_identification.ipynb` | Fit WIMUSim params to real MoVi IMU data |
 | `examples/parameter_transformation.ipynb` | CPM data augmentation for model training |
+| `examples/evaluation.ipynb` | Evaluate on TotalCapture / EMDB, output metrics |
 
 ---
 
@@ -236,10 +290,13 @@ WIMUSim/
 │   │   └── utils.py           compute_B_from_beta, smpl_pose_to_D_orientation
 │   ├── movi/                  MoVi dataset (train)
 │   ├── totalcapture/          TotalCapture dataset (test)
+│   │   └── preprocess.py      Convert AMASS + raw Xsens → smpl.npz + imu.pkl
 │   └── emdb/                  EMDB dataset (test)
 ├── pipeline/
 │   ├── video_to_smpl.py       HMR2.0 wrapper: video → SMPL params
-│   └── run.py                 End-to-end: video → virtual IMU
+│   ├── run.py                 End-to-end: video → virtual IMU (CLI)
+│   ├── resample.py            Sample rate alignment (SLERP + linear interp)
+│   └── evaluate.py            Evaluation metrics (RMSE, MAE, Pearson)
 └── examples/                  Jupyter notebooks
 ```
 

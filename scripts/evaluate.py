@@ -1,26 +1,28 @@
 """
-Evaluate PhyNeSim on TotalCapture or EMDB test sets.
+Evaluate PhyNeSim on the MoVi test split (subjects 61-90).
 
 Physics-only baseline:
     python scripts/evaluate.py \
-        --dataset     totalcapture \
-        --data_root   /data/tc_processed \
-        --smpl_model  path/to/smpl/models \
-        --output_dir  results/
+        --dataset    movi \
+        --amass_root /data/MoVi/amass \
+        --xsens_root /data/MoVi/xsens \
+        --smpl_model path/to/smpl/models \
+        --output_dir results/
 
 With neural residual correction:
     python scripts/evaluate.py \
-        --dataset     totalcapture \
-        --data_root   /data/tc_processed \
-        --smpl_model  path/to/smpl/models \
-        --checkpoint  output/checkpoints/best.pt \
-        --output_dir  results/
+        --dataset    movi \
+        --amass_root /data/MoVi/amass \
+        --xsens_root /data/MoVi/xsens \
+        --smpl_model path/to/smpl/models \
+        --checkpoint output/checkpoints/best.pt \
+        --output_dir results/
 
 Outputs:
     results/
-        {dataset}_metrics.csv          per-sequence per-IMU metrics
-        {dataset}_summary.csv          mean across all sequences
-        {dataset}_per_imu_rmse.png     per-IMU RMSE bar chart (acc + gyro)
+        movi_metrics.csv          per-sequence per-IMU metrics
+        movi_summary.csv          mean across all sequences
+        movi_per_imu_rmse.png     per-IMU RMSE bar chart (acc + gyro)
 """
 
 import argparse
@@ -94,44 +96,6 @@ def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
 # Per-dataset evaluation loops
 # ---------------------------------------------------------------------------
 
-def eval_totalcapture(data_root, smpl_model, checkpoint, device, subjects, activities):
-    from dataset_configs.totalcapture import consts as tc
-    from dataset_configs.totalcapture.utils import (
-        load_smpl_params, load_imu_data,
-        generate_default_placement_params as tc_placement,
-    )
-
-    subj_list = subjects or tc.SUBJECT_LIST
-    act_list  = activities or tc.ACTIVITY_LIST
-    rows = []
-
-    for subj in subj_list:
-        for act in act_list:
-            print(f"  {subj}/{act} ...", end=" ", flush=True)
-            try:
-                betas, go, bp, trans = load_smpl_params(data_root, subj, act)
-                real_imu             = load_imu_data(data_root, subj, act)
-            except FileNotFoundError:
-                print("skipped (no file)")
-                continue
-
-            try:
-                virt_imu = _run_sequence(
-                    betas, go, bp, trans, tc.IMU_NAMES, tc_placement,
-                    tc.SMPL_SAMPLE_RATE, smpl_model, checkpoint, device,
-                )
-            except Exception as e:
-                print(f"skipped ({e})")
-                continue
-
-            df = evaluate(virt_imu, real_imu)
-            df["subject"]  = subj
-            df["activity"] = act
-            rows.append(df)
-            print("done")
-
-    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
-
 
 def eval_movi(amass_root, xsens_root, v3d_root, smpl_model,
               checkpoint, device, subjects, activity_indices):
@@ -186,40 +150,6 @@ def eval_movi(amass_root, xsens_root, v3d_root, smpl_model,
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
 
-def eval_emdb(data_root, smpl_model, checkpoint, device, split):
-    from dataset_configs.emdb import consts as emdb
-    from dataset_configs.emdb.utils import (
-        load_smpl_params, load_imu_data, iter_sequences,
-        generate_default_placement_params as emdb_placement,
-    )
-
-    rows = []
-    for subj, seq_name, pkl_path in iter_sequences(data_root, split=split):
-        print(f"  {subj}/{seq_name} ...", end=" ", flush=True)
-        try:
-            betas, go, bp, trans = load_smpl_params(pkl_path)
-            real_imu             = load_imu_data(pkl_path)
-        except Exception as e:
-            print(f"skipped ({e})")
-            continue
-
-        try:
-            virt_imu = _run_sequence(
-                betas, go, bp, trans, emdb.IMU_NAMES, emdb_placement,
-                emdb.SMPL_SAMPLE_RATE, smpl_model, checkpoint, device,
-            )
-        except Exception as e:
-            print(f"skipped ({e})")
-            continue
-
-        df = evaluate(virt_imu, real_imu)
-        df["subject"]  = subj
-        df["sequence"] = seq_name
-        rows.append(df)
-        print("done")
-
-    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
-
 
 # ---------------------------------------------------------------------------
 # Plot
@@ -253,86 +183,47 @@ def plot_per_imu_rmse(df: pd.DataFrame, output_dir: Path, prefix: str):
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="PhyNeSim evaluation")
-    parser.add_argument("--dataset",    required=True,
-                        choices=["movi", "totalcapture", "emdb"],
-                        help="Dataset to evaluate on")
-    parser.add_argument("--smpl_model", required=True,
+    parser = argparse.ArgumentParser(description="PhyNeSim evaluation on MoVi test split")
+    parser.add_argument("--amass_root",       required=True,
+                        help="Root containing F_amass_Subject_N.mat files")
+    parser.add_argument("--smpl_model",       required=True,
                         help="Path to SMPL model directory (contains SMPL_NEUTRAL.pkl)")
-    parser.add_argument("--checkpoint", default=None,
+    parser.add_argument("--xsens_root",       default=None,
+                        help="Root containing imu_Subject_N.mat files "
+                             "(real Xsens IMU, recommended)")
+    parser.add_argument("--v3d_root",         default=None,
+                        help="Root containing F_v3d_Subject_N.mat files "
+                             "(used when xsens_root is not set)")
+    parser.add_argument("--checkpoint",       default=None,
                         help="Path to trained PhyNeSim checkpoint (.pt). "
                              "Omit to run physics-only baseline.")
-    parser.add_argument("--output_dir", default="results",
+    parser.add_argument("--output_dir",       default="results",
                         help="Where to save CSV and plots (default: results/)")
-    parser.add_argument("--device",     default="cpu",
+    parser.add_argument("--device",           default="cpu",
                         help="Torch device (cpu or cuda)")
-
-    # MoVi test split
-    parser.add_argument("--amass_root",        default=None,
-                        help="MoVi: root containing F_amass_Subject_N.mat files")
-    parser.add_argument("--xsens_root",        default=None,
-                        help="MoVi: root containing imu_Subject_N.mat files "
-                             "(real Xsens IMU, recommended)")
-    parser.add_argument("--v3d_root",          default=None,
-                        help="MoVi: root containing F_v3d_Subject_N.mat files "
-                             "(used when xsens_root is not set)")
-    parser.add_argument("--test_subjects",     nargs="+", type=int, default=None,
-                        help="MoVi subject numbers to evaluate (default: 61-90)")
-    parser.add_argument("--activity_indices",  nargs="+", type=int, default=None,
-                        help="MoVi activity indices 0-20 to evaluate (default: all 21)")
-
-    # TotalCapture / EMDB
-    parser.add_argument("--data_root",  default=None,
-                        help="TotalCapture/EMDB: root of preprocessed dataset")
-    parser.add_argument("--subjects",   nargs="+", default=None,
-                        help="TotalCapture subjects to evaluate (e.g. --subjects s1 s5)")
-    parser.add_argument("--activities", nargs="+", default=None,
-                        help="TotalCapture activities to evaluate")
-    parser.add_argument("--split",      default="EMDB_2",
-                        choices=["EMDB_1", "EMDB_2"],
-                        help="EMDB split (EMDB_1=indoor, EMDB_2=outdoor, default: EMDB_2)")
+    parser.add_argument("--test_subjects",    nargs="+", type=int, default=None,
+                        help="Subject numbers to evaluate (default: 61-90)")
+    parser.add_argument("--activity_indices", nargs="+", type=int, default=None,
+                        help="Activity indices 0-20 to evaluate (default: all 21)")
 
     args = parser.parse_args()
 
-    # Validate required args per dataset
-    if args.dataset == "movi":
-        if not args.amass_root:
-            parser.error("--amass_root is required for --dataset movi")
-        if not args.xsens_root and not args.v3d_root:
-            parser.error("--xsens_root or --v3d_root is required for --dataset movi")
-    else:
-        if not args.data_root:
-            parser.error("--data_root is required for --dataset totalcapture/emdb")
+    if not args.xsens_root and not args.v3d_root:
+        parser.error("--xsens_root or --v3d_root is required")
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    mode = "PhyNeSim" if args.checkpoint else "Physics-only"
-    if args.dataset == "movi":
-        prefix = "movi"
-    elif args.dataset == "totalcapture":
-        prefix = "totalcapture"
-    else:
-        prefix = f"emdb_{args.split.lower()}"
+    mode   = "PhyNeSim" if args.checkpoint else "Physics-only"
+    prefix = "movi"
 
-    print(f"\n=== Evaluating {args.dataset}  [{mode}] ===\n")
+    print(f"\n=== Evaluating MoVi  [{mode}] ===\n")
 
-    if args.dataset == "movi":
-        df = eval_movi(
-            args.amass_root, args.xsens_root, args.v3d_root,
-            args.smpl_model, args.checkpoint, args.device,
-            args.test_subjects, args.activity_indices,
-        )
-    elif args.dataset == "totalcapture":
-        df = eval_totalcapture(
-            args.data_root, args.smpl_model, args.checkpoint,
-            args.device, args.subjects, args.activities,
-        )
-    else:
-        df = eval_emdb(
-            args.data_root, args.smpl_model, args.checkpoint,
-            args.device, args.split,
-        )
+    df = eval_movi(
+        args.amass_root, args.xsens_root, args.v3d_root,
+        args.smpl_model, args.checkpoint, args.device,
+        args.test_subjects, args.activity_indices,
+    )
 
     if df.empty:
         print("\nNo sequences evaluated. Check data paths and subject numbers.")

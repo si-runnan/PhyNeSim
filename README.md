@@ -111,23 +111,23 @@ python -m nn.train \
     --epochs      100
 ```
 
-**3. Evaluate on test sets**
+**3. Evaluate on MoVi test split (subjects 61-90)**
 
 ```bash
 # Physics-only baseline
 python scripts/evaluate.py \
-    --dataset     totalcapture \
-    --data_root   /data/tc_processed \
-    --smpl_model  path/to/smpl/models \
-    --output_dir  results/
+    --amass_root /data/MoVi/amass \
+    --xsens_root /data/MoVi/xsens \
+    --smpl_model path/to/smpl/models \
+    --output_dir results/
 
 # With neural correction
 python scripts/evaluate.py \
-    --dataset     totalcapture \
-    --data_root   /data/tc_processed \
-    --smpl_model  path/to/smpl/models \
-    --checkpoint  output/checkpoints/best.pt \
-    --output_dir  results/
+    --amass_root /data/MoVi/amass \
+    --xsens_root /data/MoVi/xsens \
+    --smpl_model path/to/smpl/models \
+    --checkpoint output/checkpoints/best.pt \
+    --output_dir results/
 ```
 
 Output files:
@@ -178,20 +178,15 @@ acc_LLA, gyro_LLA = virtual_IMU_dict["LLA"]  # torch.Tensor (T, 3)
 
 ---
 
-## Datasets
+## Dataset — MoVi
 
-### Training — MoVi
+90 subjects × 21 activities × 1 take each. Subjects 1-60 for training, 61-90 for testing.
 
-90 subjects × 21 activities × 1 take each. Three complementary sources are used:
-
-| Source | File | Role in training |
-|--------|------|-----------------|
+| Source | File | Role |
+|--------|------|------|
 | F_amass | `F_amass_Subject_N.mat` | SMPL body parameters → WIMUSim physics → **virtual IMU** (model input) |
-| MoVi Xsens IMU | `imu_Subject_N.mat` | Real physical sensor measurements → **real IMU** (training target, **recommended**) |
-| MoVi v3d Vicon | `F_v3d_Subject_N.mat` | Activity segmentation flags + fallback derived IMU |
-
-**Recommended**: use Xsens IMU as training target (17 sensors, 100 Hz, real physical measurements).
-v3d is still supported as a fallback but has numerical artifacts at distal joints (hands/feet) from Vicon occlusion.
+| MoVi Xsens IMU | `imu_Subject_N.mat` | Real physical sensor measurements → **training/test target** (recommended) |
+| MoVi v3d Vicon | `F_v3d_Subject_N.mat` | Optional: activity segmentation or fallback derived IMU |
 
 Download: https://www.biomotionlab.ca/movi/ → `F_amass`, `F_IMUmatlab`, `F_v3d` archives
 
@@ -200,84 +195,18 @@ Expected directory structure:
 ```
 /data/MoVi/
     amass/                          ← --amass_root
-        F_amass_Subject_1.mat      ← subject 1, all 21 activities
-        F_amass_Subject_2.mat
+        F_amass_Subject_1.mat
         ...
         F_amass_Subject_90.mat
     xsens/                          ← --xsens_root  (recommended)
-        imu_Subject_1.mat          ← real Xsens IMU, all 21 activities, 100 Hz
-        imu_Subject_2.mat
+        imu_Subject_1.mat          ← real Xsens IMU, 100 Hz
         ...
         imu_Subject_90.mat
-    v3d/                            ← --v3d_root  (optional when xsens_root is set)
-        F_v3d_Subject_1.mat        ← omit this dir to derive boundaries from AMASS
-        F_v3d_Subject_2.mat
+    v3d/                            ← --v3d_root  (optional)
+        F_v3d_Subject_1.mat
         ...
         F_v3d_Subject_90.mat
 ```
-
-### Test — TotalCapture
-
-5 subjects, 13 IMUs, indoor lab setting.
-
-- Raw IMU data: https://cvssp.org/data/totalcapture/
-- SMPL fits (AMASS TotalCapture subset): https://amass.is.tue.mpg.de/
-
-After downloading both, run the preprocessing script:
-
-```bash
-python -m dataset_configs.totalcapture.preprocess \
-    --tc_root    /data/TotalCapture \
-    --amass_root /data/AMASS/TotalCapture \
-    --output     /data/tc_processed
-```
-
-This converts AMASS SMPL fits + raw Xsens text files and writes:
-
-```
-tc_processed/
-    s1/
-        walking1/
-            smpl.npz   # betas (10,), global_orient (T,3,3), body_pose (T,23,3,3)
-            imu.pkl    # {imu_name: {'acc': (T,3), 'gyro': (T,3)}}
-        acting1/
-        ...
-    s2/
-    ...
-```
-
-Optional flags: `--subjects s1 s5`, `--activities walking1 acting1`, `--no_skip`.
-
-### Test — EMDB
-
-9 subjects, 6 IMUs, outdoor in-the-wild sequences.
-
-Download: https://ait.ethz.ch/emdb
-
-EMDB provides SMPL-X parameters. Run the preprocessing script to convert them
-to SMPL-compatible format:
-
-```bash
-python -m dataset_configs.emdb.preprocess \
-    --emdb_root /data/EMDB \
-    --output    /data/emdb_processed \
-    --split     EMDB_2          # outdoor split (test set)
-```
-
-Output structure:
-
-```
-emdb_processed/
-    EMDB_1/          ← indoor (optional, can use as additional train)
-        P1/
-            sequence_01.pkl
-    EMDB_2/          ← outdoor (test set)
-        P1/
-            sequence_01.pkl
-```
-
-Each processed `.pkl` contains `smpl` (betas, global_orient, body_pose) and
-`imu` (acc, gyro) arrays, compatible with `dataset_configs/emdb/utils.py`.
 
 ---
 
@@ -320,8 +249,6 @@ Different sources run at different rates:
 | Source | SMPL rate | IMU rate |
 |--------|-----------|----------|
 | MoVi | 120 Hz | 120 Hz (v3d) / 100 Hz Xsens → upsampled to 120 Hz |
-| TotalCapture | 60 Hz | 60 Hz |
-| EMDB | 60 Hz | 60 Hz |
 | HMR2.0 (video) | 30 Hz | — |
 
 Use `pipeline/resample.py` to align them before feeding into WIMUSim:
@@ -446,7 +373,7 @@ python -m nn.infer \
 | `examples/generate_D_from_3d_pose.ipynb` | Load MoVi SMPL data → simulate virtual IMU |
 | `examples/parameter_identification.ipynb` | Fit WIMUSim params to real MoVi IMU data |
 | `examples/parameter_transformation.ipynb` | CPM data augmentation for model training |
-| `examples/evaluation.ipynb` | Evaluate on TotalCapture / EMDB, output metrics |
+| `examples/evaluation.ipynb` | Evaluate on MoVi test split, output metrics |
 
 ---
 
@@ -462,11 +389,7 @@ PhyNeSim/
 │   ├── smpl/                  SMPL format converters
 │   │   ├── consts.py          24-joint skeleton definitions
 │   │   └── utils.py           compute_B_from_beta, smpl_pose_to_D_orientation
-│   ├── movi/                  MoVi dataset (train)
-│   ├── totalcapture/          TotalCapture dataset (test)
-│   │   └── preprocess.py      Convert AMASS + raw Xsens → smpl.npz + imu.pkl
-│   └── emdb/                  EMDB dataset (test)
-│       └── preprocess.py      Convert SMPL-X → SMPL-compatible format
+│   └── movi/                  MoVi dataset loader (train + test)
 ├── pipeline/
 │   ├── video_to_smpl.py       HMR2.0 wrapper: video → SMPL params
 │   ├── run.py                 End-to-end: video → virtual IMU (CLI)

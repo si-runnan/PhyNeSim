@@ -155,7 +155,7 @@ def corrected_simulate(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="WIMUSim + neural corrector inference"
+        description="PhyNeSim inference"
     )
     parser.add_argument("--checkpoint",  required=True,
                         help="Path to trained checkpoint")

@@ -260,7 +260,7 @@ def train(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train WIMUSim neural residual corrector"
+        description="Train PhyNeSim neural residual corrector"
     )
     parser.add_argument("--movi_root",  required=True,
                         help="Root directory of MoVi dataset")

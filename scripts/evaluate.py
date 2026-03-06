@@ -43,7 +43,7 @@ from wimusim import WIMUSim, utils
 # Single-sequence runner
 # ---------------------------------------------------------------------------
 
-def _run_sequence(betas, global_orient, body_pose, imu_names,
+def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
                   placement_fn, sample_rate, smpl_model, checkpoint, device):
     """Simulate one sequence. Returns {imu_name: (acc, gyro)}."""
     B_rp        = compute_B_from_beta(betas, smpl_model_path=smpl_model)
@@ -54,7 +54,9 @@ def _run_sequence(betas, global_orient, body_pose, imu_names,
     if checkpoint is None:
         env = WIMUSim(
             B={"rp": B_rp},
-            D={"orientation": orientation, "sample_rate": sample_rate},
+            D={"orientation": orientation,
+               "translation": {"XYZ": trans},
+               "sample_rate": sample_rate},
             P=P_params,
             H=H,
             dataset_name="SMPL",
@@ -74,6 +76,7 @@ def _run_sequence(betas, global_orient, body_pose, imu_names,
     B_obj = WIMUSim.Body(rp={k: _t(v) for k, v in B_rp.items()}, device=dev)
     D_obj = WIMUSim.Dynamics(
         orientation={k: _t(v) for k, v in orientation.items()},
+        translation={"XYZ": _t(trans)},
         sample_rate=sample_rate,
         device=dev,
     )
@@ -113,15 +116,15 @@ def eval_totalcapture(data_root, smpl_model, checkpoint, device, subjects, activ
         for act in act_list:
             print(f"  {subj}/{act} ...", end=" ", flush=True)
             try:
-                betas, go, bp = load_smpl_params(data_root, subj, act)
-                real_imu      = load_imu_data(data_root, subj, act)
+                betas, go, bp, trans = load_smpl_params(data_root, subj, act)
+                real_imu             = load_imu_data(data_root, subj, act)
             except FileNotFoundError:
                 print("skipped (no file)")
                 continue
 
             try:
                 virt_imu = _run_sequence(
-                    betas, go, bp, tc.IMU_NAMES, tc_placement,
+                    betas, go, bp, trans, tc.IMU_NAMES, tc_placement,
                     tc.SMPL_SAMPLE_RATE, smpl_model, checkpoint, device,
                 )
             except Exception as e:
@@ -148,15 +151,15 @@ def eval_emdb(data_root, smpl_model, checkpoint, device, split):
     for subj, seq_name, pkl_path in iter_sequences(data_root, split=split):
         print(f"  {subj}/{seq_name} ...", end=" ", flush=True)
         try:
-            betas, go, bp = load_smpl_params(pkl_path)
-            real_imu      = load_imu_data(pkl_path)
+            betas, go, bp, trans = load_smpl_params(pkl_path)
+            real_imu             = load_imu_data(pkl_path)
         except Exception as e:
             print(f"skipped ({e})")
             continue
 
         try:
             virt_imu = _run_sequence(
-                betas, go, bp, emdb.IMU_NAMES, emdb_placement,
+                betas, go, bp, trans, emdb.IMU_NAMES, emdb_placement,
                 emdb.SMPL_SAMPLE_RATE, smpl_model, checkpoint, device,
             )
         except Exception as e:

@@ -54,6 +54,7 @@ def load_smpl_params(pkl_path: str):
         global_orient: np.ndarray (T, 3, 3)
         body_pose:     np.ndarray (T, 23, 3, 3)
                        joints 22-23 padded with identity
+        trans:         np.ndarray (T, 3)  root translation in metres
     """
     data = load_sequence(pkl_path)
     smpl = data["smpl"]
@@ -61,12 +62,13 @@ def load_smpl_params(pkl_path: str):
     betas         = smpl["betas"].astype(np.float32)          # (10,)
     global_orient = smpl["global_orient"].astype(np.float32)  # (T, 3, 3)
     body_21       = smpl["body_pose"].astype(np.float32)      # (T, 21, 3, 3)
+    trans         = smpl["transl"].astype(np.float32)         # (T, 3) metres
 
     T = body_21.shape[0]
     eye = np.eye(3, dtype=np.float32)[None, None].repeat(T, axis=0).repeat(2, axis=1)
     body_pose = np.concatenate([body_21, eye], axis=1)        # (T, 23, 3, 3)
 
-    return betas, global_orient, body_pose
+    return betas, global_orient, body_pose, trans
 
 
 def load_imu_data(pkl_path: str) -> dict:

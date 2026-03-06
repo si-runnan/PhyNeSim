@@ -40,13 +40,19 @@ def load_smpl_params(data_path: str, subject: str, activity: str):
         betas:         np.ndarray (10,)
         global_orient: np.ndarray (T, 3, 3)
         body_pose:     np.ndarray (T, 23, 3, 3)
+        trans:         np.ndarray (T, 3)  root translation in metres
+                       (zeros if not present in smpl.npz)
     """
     npz_path = pathlib.Path(data_path) / subject / activity / "smpl.npz"
-    data = np.load(str(npz_path))
+    data  = np.load(str(npz_path))
+    go    = data["global_orient"].astype(np.float32)
+    T     = go.shape[0]
+    trans = data["trans"].astype(np.float32) if "trans" in data else np.zeros((T, 3), dtype=np.float32)
     return (
         data["betas"].astype(np.float32),
-        data["global_orient"].astype(np.float32),
+        go,
         data["body_pose"].astype(np.float32),
+        trans,
     )
 
 

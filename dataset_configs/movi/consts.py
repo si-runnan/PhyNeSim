@@ -2,46 +2,115 @@
 MoVi dataset constants for WIMUSim.
 
 MoVi: A Large Multi-Purpose Human Motion and Video Dataset
-- 90 subjects × 20 activities × 5 trials
-- 17 Xsens MTw Awinda IMUs (100 Hz)
+- 90 subjects total (numbered 1-90)
+- 21 activities × 1 take each
 - 4 synchronized video cameras
-- SMPL fits in AMASS-compatible format (60 Hz)
+- Vicon motion capture at 120 Hz → F_v3d_Subject_N.mat
+- SMPL fits via AMASS/BMLmovi at 120 Hz → Subject_N_F_{seq}_poses.npz
+  (F = Full body dataset marker set, not gender)
+
+Data layout expected:
+    amass_root/
+        Subject_{N}_F_{seq}_poses.npz   seq = 1..21 (same order as V3D_MOTION_LIST)
+                                         contains: poses(T,156), betas(16,), trans(T,3)
+
+    v3d_root/
+        F_v3d_Subject_{N}.mat
 
 Reference: Ghorbani et al., "MoVi: A Large Multipurpose Motion and Video Dataset", 2021.
 Dataset: https://www.biomotionlab.ca/movi/
 """
 
-# IMU sample rate (Hz)
-IMU_SAMPLE_RATE = 100
-
-# SMPL/mocap sample rate (Hz)
-SMPL_SAMPLE_RATE = 60
+# Both v3d and AMASS BMLmovi are at 120 Hz
+V3D_SAMPLE_RATE  = 120
+SMPL_SAMPLE_RATE = 120
 
 # -----------------------------------------------------------------------
-# IMU placements (WIMUSim name → MoVi sensor label)
+# Activities (21 activities in v3d motions_list order)
+# seq_id in AMASS = activity index + 1
 # -----------------------------------------------------------------------
-# WIMUSim uses short uppercase codes; MoVi uses descriptive strings.
-IMU_NAME_PAIRS = [
-    ("HED",  "head"),
-    ("STER", "sternum"),
-    ("PELV", "pelvis"),
-    ("RSHO", "right_shoulder"),
-    ("LSHO", "left_shoulder"),
-    ("RUA",  "right_upper_arm"),
-    ("LUA",  "left_upper_arm"),
-    ("RLA",  "right_forearm"),
-    ("LLA",  "left_forearm"),
-    ("RHD",  "right_hand"),
-    ("LHD",  "left_hand"),
-    ("RTH",  "right_thigh"),
-    ("LTH",  "left_thigh"),
-    ("RSH",  "right_shin"),
-    ("LSH",  "left_shin"),
-    ("RFT",  "right_foot"),
-    ("LFT",  "left_foot"),
+V3D_MOTION_LIST = [
+    "kicking",
+    "dancing_rm",
+    "pointing",
+    "hand_clapping",
+    "jumping_jack",
+    "stretching",
+    "crossarms",
+    "running_in_spot",
+    "crawling",
+    "walking",
+    "hand_waving",
+    "checking_watch",
+    "sideways",
+    "vertical_jumping",
+    "sitting_down",
+    "taking_photo",
+    "cross_legged_sitting",
+    "throw_catch",
+    "jogging",
+    "scratching_head",
+    "phone_talking",
 ]
-IMU_NAME_PAIRS_DICT = dict(IMU_NAME_PAIRS)        # WIMUSim → MoVi
-IMU_NAMES = list(IMU_NAME_PAIRS_DICT.keys())      # WIMUSim names
+
+# -----------------------------------------------------------------------
+# Subjects: integers 1-90 (all use _F_ designator in file names)
+# -----------------------------------------------------------------------
+ALL_SUBJECTS = list(range(1, 91))   # 90 subjects
+
+# Suggested train/test split (no official split; adjust as needed)
+TRAIN_SUBJECTS = list(range(1, 61))
+TEST_SUBJECTS  = list(range(61, 91))
+
+# -----------------------------------------------------------------------
+# v3d segment names (15 body segments tracked in Vicon) and their
+# mapping to WIMUSim IMU names.
+# -----------------------------------------------------------------------
+# v3d segment index → segment short name
+V3D_SEGMENT_NAMES = [
+    "RTA",   # 0 — Thorax/Sternum (centre)
+    "RHE",   # 1 — Head (centre)
+    "LAR",   # 2 — Left upper Arm
+    "LFA",   # 3 — Left ForeArm
+    "LHA",   # 4 — Left HAnd
+    "RPV",   # 5 — Pelvis (centre)
+    "LTH",   # 6 — Left THigh
+    "LSK",   # 7 — Left ShanK
+    "LFT",   # 8 — Left FooT
+    "RAR",   # 9 — Right upper Arm
+    "RFA",   # 10 — Right ForeArm
+    "RHA",   # 11 — Right HAnd
+    "RTH",   # 12 — Right THigh
+    "RSK",   # 13 — Right ShanK
+    "RFT",   # 14 — Right FooT
+]
+
+# v3d segment name → WIMUSim IMU name (15 of the 17 MoVi IMUs; RSHO/LSHO excluded)
+V3D_SEG_TO_IMU = {
+    "RHE": "HED",
+    "RTA": "STER",
+    "RPV": "PELV",
+    "LAR": "LUA",
+    "LFA": "LLA",
+    "LHA": "LHD",
+    "RAR": "RUA",
+    "RFA": "RLA",
+    "RHA": "RHD",
+    "LTH": "LTH",
+    "LSK": "LSH",
+    "LFT": "LFT",
+    "RTH": "RTH",
+    "RSK": "RSH",
+    "RFT": "RFT",
+}
+# WIMUSim IMU name → v3d segment index
+IMU_TO_SEG_IDX = {
+    imu: V3D_SEGMENT_NAMES.index(seg)
+    for seg, imu in V3D_SEG_TO_IMU.items()
+}
+
+# All WIMUSim IMU names derivable from v3d kinematics
+IMU_NAMES = list(V3D_SEG_TO_IMU.values())
 
 # -----------------------------------------------------------------------
 # SMPL joint that each IMU is attached to (for default P generation)
@@ -50,56 +119,16 @@ IMU_PARENT_JOINT = {
     "HED":  "HEAD",
     "STER": "SPINE3",
     "PELV": "BASE",
-    "RSHO": "R_COLLAR",
-    "LSHO": "L_COLLAR",
-    "RUA":  "R_SHOULDER",
     "LUA":  "L_SHOULDER",
-    "RLA":  "R_ELBOW",
     "LLA":  "L_ELBOW",
-    "RHD":  "R_WRIST",
     "LHD":  "L_WRIST",
-    "RTH":  "R_HIP",
+    "RUA":  "R_SHOULDER",
+    "RLA":  "R_ELBOW",
+    "RHD":  "R_WRIST",
     "LTH":  "L_HIP",
-    "RSH":  "R_KNEE",
     "LSH":  "L_KNEE",
-    "RFT":  "R_ANKLE",
     "LFT":  "L_ANKLE",
+    "RTH":  "R_HIP",
+    "RSH":  "R_KNEE",
+    "RFT":  "R_ANKLE",
 }
-
-# -----------------------------------------------------------------------
-# Subjects
-# -----------------------------------------------------------------------
-# MoVi subjects are labelled F_SubjectXX (female) or M_SubjectXX (male).
-FEMALE_SUBJECTS = [f"F_Subject{i:02d}" for i in range(1, 47)]
-MALE_SUBJECTS   = [f"M_Subject{i:02d}" for i in range(1, 45)]
-ALL_SUBJECTS    = FEMALE_SUBJECTS + MALE_SUBJECTS
-
-# Suggested train/test split (no official split; adjust as needed)
-TRAIN_SUBJECTS = ALL_SUBJECTS[:60]
-TEST_SUBJECTS  = ALL_SUBJECTS[60:]
-
-# -----------------------------------------------------------------------
-# Activities
-# -----------------------------------------------------------------------
-ACTIVITY_LIST = [
-    "squat",
-    "mrope",       # jump rope
-    "walk",
-    "run",
-    "sit",
-    "catch",
-    "throw",
-    "washface",
-    "phone",
-    "armcircle",
-    "cartwheel",
-    "punch",
-    "kick",
-    "spin",
-    "clap",
-    "bend",
-    "wave",
-    "reach",
-    "yoga",
-    "dance",
-]

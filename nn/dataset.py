@@ -206,100 +206,99 @@ class SimulatorDataset(Dataset):
     @classmethod
     def from_movi(
         cls,
-        movi_root: str,
+        amass_root: str,
+        v3d_root: str,
         smpl_model_path: str,
         imu_names: List[str],
-        subjects: Optional[List[str]] = None,
-        activities: Optional[List[str]] = None,
-        trials: Optional[List[int]] = None,
+        subjects: Optional[List] = None,
+        activity_indices: Optional[List[int]] = None,
         window: int = 128,
         stride: int = 32,
         device: Optional[torch.device] = None,
     ) -> "SimulatorDataset":
         """
-        Build a SimulatorDataset from MoVi raw data.
-
-        Requires MoVi data downloaded and MoVi/SMPL utils available.
-        See dataset_configs/movi/utils.py for expected directory structure.
+        Build a SimulatorDataset from MoVi data (AMASS BMLmovi + v3d .mat files).
 
         Args:
-            movi_root:       Root directory of MoVi dataset.
-            smpl_model_path: Path to SMPL model files (for compute_B_from_beta).
-            imu_names:       IMU sensor names to include.
-            subjects:        Subjects to include (default: TRAIN_SUBJECTS).
-            activities:      Activity names (default: all).
-            trials:          Trial numbers (default: [1, 2, 3, 4, 5]).
+            amass_root:       Root of AMASS BMLmovi download.
+                              Expected layout: Subject_{N}_{G}_MoSh/shape.npz
+                                               Subject_{N}_{G}_{seq}_poses.npz
+            v3d_root:         Root containing F/M_v3d_Subject_N.mat files.
+            smpl_model_path:  Path to SMPL model directory (for compute_B_from_beta).
+            imu_names:        IMU sensor names to include (subset of IMU_NAMES).
+            subjects:         List of subject numbers (integers 1-90).
+                              Default: TRAIN_SUBJECTS (subjects 1-60).
+            activity_indices: Indices into V3D_MOTION_LIST (0-20). Default: all 21.
         """
         from dataset_configs.movi.utils import (
             load_smpl_params,
             load_imu_data,
             generate_default_placement_params,
         )
-        from dataset_configs.movi.consts import TRAIN_SUBJECTS, ACTIVITY_LIST
+        from dataset_configs.movi.consts import TRAIN_SUBJECTS, SMPL_SAMPLE_RATE
         from dataset_configs.smpl.utils import (
             compute_B_from_beta,
             smpl_pose_to_D_orientation,
         )
         from wimusim import utils as wu
 
-        subjects   = subjects   or TRAIN_SUBJECTS
-        activities = activities or ACTIVITY_LIST
-        trials     = trials     or [1, 2, 3, 4, 5]
-        device_    = device or (
+        subjects         = subjects         or TRAIN_SUBJECTS
+        activity_indices = activity_indices or list(range(21))
+        device_          = device or (
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
 
         sequences = []
-        for subject in subjects:
-            for activity in activities:
-                for trial in trials:
-                    try:
-                        betas, global_orient, body_pose = load_smpl_params(
-                            movi_root, subject, activity, trial
-                        )
-                        real_imu_dict = load_imu_data(
-                            movi_root, subject, activity, trial
-                        )
-                    except (FileNotFoundError, KeyError):
-                        continue
-
-                    # Build WIMUSim parameters
-                    B_rp = compute_B_from_beta(
-                        betas, smpl_model_path=smpl_model_path
+        for subject_num in subjects:
+            for act_idx in activity_indices:
+                seq_id = act_idx + 1   # AMASS seq files are 1-indexed
+                try:
+                    betas, global_orient, body_pose, trans = load_smpl_params(
+                        amass_root, subject_num, seq_id
                     )
-                    B = WIMUSim.Body(
-                        rp={k: torch.tensor(v, dtype=torch.float32, device=device_)
-                            for k, v in B_rp.items()},
-                        device=device_,
+                    real_imu_dict = load_imu_data(
+                        v3d_root, subject_num, act_idx, imu_names
                     )
+                except (FileNotFoundError, KeyError, Exception):
+                    continue
 
-                    from dataset_configs.movi.consts import SMPL_SAMPLE_RATE
-                    orientation = smpl_pose_to_D_orientation(global_orient, body_pose)
-                    D = WIMUSim.Dynamics(
-                        orientation={
-                            k: torch.tensor(v, dtype=torch.float32, device=device_)
-                            for k, v in orientation.items()
-                        },
-                        sample_rate=SMPL_SAMPLE_RATE,
-                        device=device_,
-                    )
+                # Build WIMUSim parameters
+                B_rp = compute_B_from_beta(betas, smpl_model_path=smpl_model_path)
+                B = WIMUSim.Body(
+                    rp={k: torch.tensor(v, dtype=torch.float32, device=device_)
+                        for k, v in B_rp.items()},
+                    device=device_,
+                )
 
-                    P_all = generate_default_placement_params(B_rp)
-                    P = WIMUSim.Placement(
-                        rp={k: torch.tensor(v, dtype=torch.float32, device=device_)
-                            for k, v in P_all["rp"].items()
-                            if k[1] in imu_names},
-                        ro={k: torch.tensor(v, dtype=torch.float32, device=device_)
-                            for k, v in P_all["ro"].items()
-                            if k[1] in imu_names},
-                        device=device_,
-                    )
-                    H = wu.generate_default_H_configs(imu_names)
+                orientation = smpl_pose_to_D_orientation(global_orient, body_pose)
+                D = WIMUSim.Dynamics(
+                    orientation={
+                        k: torch.tensor(v, dtype=torch.float32, device=device_)
+                        for k, v in orientation.items()
+                    },
+                    translation={
+                        "XYZ": torch.tensor(trans, dtype=torch.float32, device=device_)
+                    },
+                    sample_rate=SMPL_SAMPLE_RATE,
+                    device=device_,
+                )
 
-                    sequences.append((D, real_imu_dict, B, P, H))
+                P_all = generate_default_placement_params(B_rp)
+                P = WIMUSim.Placement(
+                    rp={k: torch.tensor(v, dtype=torch.float32, device=device_)
+                        for k, v in P_all["rp"].items()
+                        if k[1] in imu_names},
+                    ro={k: torch.tensor(v, dtype=torch.float32, device=device_)
+                        for k, v in P_all["ro"].items()
+                        if k[1] in imu_names},
+                    device=device_,
+                )
+                H = wu.generate_default_H_configs(imu_names)
+
+                sequences.append((D, real_imu_dict, B, P, H))
 
         print(f"Loaded {len(sequences)} MoVi sequences "
-              f"({len(subjects)} subjects × {len(activities)} activities × {len(trials)} trials)")
+              f"({len(subjects)} subjects × {len(activity_indices)} activities)")
 
         return cls(
             sequences=sequences,

@@ -146,6 +146,9 @@ def train(
         device=device,
     )
     dataset.generate_data()
+    # Use the effective IMU list determined during generate_data() so that
+    # n_imus, imu_names, and checkpoint config are all consistent.
+    imu_names = dataset.imu_names
 
     n_val   = max(1, int(len(dataset) * val_split))
     n_train = len(dataset) - n_val

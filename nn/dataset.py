@@ -17,13 +17,10 @@ Data flow:
         → sliding windows → (pose_6d, phys_imu, real_imu)
 """
 
-import pickle
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -237,8 +234,8 @@ class SimulatorDataset(Dataset):
 
         Args:
             amass_root:       Root of AMASS BMLmovi download.
-                              Expected layout: Subject_{N}_F_{seq}_poses.npz
-                                               (seq = 1..21, one file per activity)
+                              Expected layout: F_amass_Subject_{N}.mat
+                                               (one .mat per subject, all 21 activities)
             v3d_root:         Root containing F_v3d_Subject_N.mat files.
                               - If xsens_root is None: required (IMU + segmentation).
                               - If xsens_root is set: optional (only for segmentation).

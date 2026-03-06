@@ -91,21 +91,12 @@ python pipeline/run.py \
     --csv
 ```
 
-**2. Train the neural residual corrector (on MoVi)**
+**2. Train on MoVi (subjects 1-60)**
 
 ```bash
-# With Xsens IMU (recommended) — v3d not required
 python -m nn.train \
     --amass_root  /data/MoVi/amass \
     --xsens_root  /data/MoVi/xsens \
-    --smpl_model  path/to/smpl/models \
-    --output_dir  output/checkpoints \
-    --epochs      100
-
-# With v3d-derived IMU (fallback, no Xsens needed)
-python -m nn.train \
-    --amass_root  /data/MoVi/amass \
-    --v3d_root    /data/MoVi/v3d \
     --smpl_model  path/to/smpl/models \
     --output_dir  output/checkpoints \
     --epochs      100
@@ -114,14 +105,6 @@ python -m nn.train \
 **3. Evaluate on MoVi test split (subjects 61-90)**
 
 ```bash
-# Physics-only baseline
-python scripts/evaluate.py \
-    --amass_root /data/MoVi/amass \
-    --xsens_root /data/MoVi/xsens \
-    --smpl_model path/to/smpl/models \
-    --output_dir results/
-
-# With neural correction
 python scripts/evaluate.py \
     --amass_root /data/MoVi/amass \
     --xsens_root /data/MoVi/xsens \
@@ -300,24 +283,46 @@ Loss: **Smooth L1** on acc and gyro channels separately (different physical scal
 The training log reports improvement over the physics-only baseline, e.g.:
 
 ```
-Physics-only baseline loss: 0.3841
-Epoch  50  train 0.1203  val 0.1389  (+63.8% vs physics)
+=== Loading MoVi data ===
+Loaded 1260 MoVi sequences (60 subjects × 21 activities)
+Generating physics IMU for 1260 sequences...
+Dataset ready: 1187 seqs, 82340 windows, 15 IMUs.
+
+  Physics-only baseline loss: 0.3841
+
+=== NeuralSimulator (2,847,366 params) ===
+
+=== Training ===
+  Epoch    1/100  train 0.3512  val 0.3290  (-14.4% vs physics)  48.2s
+  Epoch   50/100  train 0.1203  val 0.1389  (+63.8% vs physics)  45.1s
+  Epoch  100/100  train 0.0981  val 0.1204  (+68.6% vs physics)  44.8s
+
+Best val: 0.1189  (+69.0% vs physics baseline 0.3841)
 ```
+
+### Training data split
+
+| Split | Subjects | Role |
+|-------|----------|------|
+| Train sequences | 1–60 | Build sliding windows (85%) → train, (15%) → val |
+| Test sequences | 61–90 | Evaluated separately via `scripts/evaluate.py` |
+
+> Within each subject, all 21 activities are used. Sequences shorter than the window
+> size (128 frames) are skipped automatically. The effective IMU list is locked on the
+> first valid sequence and is saved in the checkpoint.
 
 ### Step 1 — Train on MoVi
 
 ```bash
-# Recommended: use real Xsens IMU as training target (v3d not required)
+# Recommended: Xsens real IMU as target (v3d not required)
 python -m nn.train \
     --amass_root /data/MoVi/amass \
     --xsens_root /data/MoVi/xsens \
     --smpl_model path/to/smpl/models \
-    --imu_names  HED STER PELV RUA LUA RLA LLA RHD LHD RTH LTH RSH LSH RFT LFT \
     --output_dir output/checkpoints \
-    --epochs     100 \
-    --wandb_project wimusim_corrector
+    --epochs     100
 
-# Fallback: use v3d-derived kinematics (no Xsens needed)
+# Fallback: v3d-derived kinematics (no Xsens needed)
 python -m nn.train \
     --amass_root /data/MoVi/amass \
     --v3d_root   /data/MoVi/v3d \
@@ -326,35 +331,70 @@ python -m nn.train \
     --epochs     100
 ```
 
-Key arguments:
+All CLI arguments:
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--xsens_root` | None | Xsens IMU directory (omit to use v3d-derived IMU) |
-| `--window` | 128 | Sliding window length (frames) |
-| `--d_model` | 256 | Transformer hidden dim |
-| `--n_layers` | 4 | Number of Transformer layers |
+| `--amass_root` | *(required)* | F_amass_Subject_N.mat directory |
+| `--smpl_model` | *(required)* | SMPL model directory |
+| `--xsens_root` | None | Xsens IMU directory (omit to use v3d) |
+| `--v3d_root` | None | v3d directory (required when xsens_root is not set) |
+| `--subjects` | 1–60 | Subject numbers to train on |
+| `--activity_indices` | 0–20 | Activity indices to include |
+| `--imu_names` | all 15 | Sensor names (RSHO/LSHO silently skipped — no placement) |
+| `--window` | 128 | Sliding window length (frames at 120 Hz ≈ 1.07 s) |
+| `--stride` | 32 | Step between windows |
 | `--epochs` | 100 | Training epochs |
-| `--wandb_project` | None | W&B project name (omit to disable) |
+| `--batch_size` | 64 | Batch size |
+| `--lr` | 3e-4 | Initial learning rate (cosine annealing) |
+| `--val_split` | 0.15 | Fraction of windows held out for validation |
+| `--d_model` | 256 | Transformer hidden dim |
+| `--n_heads` | 4 | Attention heads |
+| `--n_layers` | 4 | Transformer encoder layers |
 | `--no_residual` | — | Direct mode: predict IMU from pose only |
+| `--wandb_project` | None | W&B project name (omit to disable) |
+| `--device` | cuda | Torch device |
+| `--seed` | 42 | Random seed |
 
-Checkpoints saved to `output/checkpoints/best.pt` and `last.pt`.
+Checkpoints saved to `output/checkpoints/best.pt` (best val loss) and `last.pt`.
 
-### Step 2 — Use as drop-in for WIMUSim.simulate()
+### Step 2 — Evaluate on MoVi test split
+
+```bash
+# Physics-only baseline
+python scripts/evaluate.py \
+    --amass_root /data/MoVi/amass \
+    --xsens_root /data/MoVi/xsens \
+    --smpl_model path/to/smpl/models \
+    --output_dir results/
+
+# With neural correction
+python scripts/evaluate.py \
+    --amass_root /data/MoVi/amass \
+    --xsens_root /data/MoVi/xsens \
+    --smpl_model path/to/smpl/models \
+    --checkpoint output/checkpoints/best.pt \
+    --output_dir results/
+```
+
+Optional: `--test_subjects 61 62 63`, `--activity_indices 0 1 2`, `--device cuda`.
+
+Outputs: `results/movi_metrics.csv`, `movi_summary.csv`, `movi_per_imu_rmse.png`.
+
+### Step 3 — Use as drop-in for WIMUSim.simulate()
 
 ```python
 from nn.infer import corrected_simulate
 
-# Same B, D, P, H as WIMUSim.simulate()
 imu_dict = corrected_simulate(
     checkpoint="output/checkpoints/best.pt",
     B=B, D=D, P=P, H=H,
 )
-# Returns {imu_name: (acc, gyro)} — identical format to WIMUSim output
+# Returns {imu_name: (acc, gyro)} — same format as WIMUSim.simulate()
 acc_RLA, gyro_RLA = imu_dict["RLA"]
 ```
 
-### Step 3 — CLI inference
+### Step 4 — CLI inference from SMPL params
 
 ```bash
 python -m nn.infer \

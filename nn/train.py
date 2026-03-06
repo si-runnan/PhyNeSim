@@ -7,9 +7,10 @@ using MoVi paired data (SMPL poses + real IMU).
 
 Usage:
     python -m nn.train \
-        --movi_root      /data/MoVi \
+        --amass_root     /data/MoVi/amass \
+        --v3d_root       /data/MoVi/v3d \
         --smpl_model     path/to/smpl/models \
-        --imu_names      HED STER PELV RUA LUA RLA LLA RHD LHD RTH LTH RSH LSH \
+        --imu_names      HED STER PELV RUA LUA RLA LLA RHD LHD RTH LTH RSH LSH RFT LFT \
         --output_dir     output/checkpoints \
         [--window        128] \
         [--stride        32] \
@@ -89,13 +90,13 @@ def physics_baseline(loader, device, n_imus):
 # ---------------------------------------------------------------------------
 
 def train(
-    movi_root: str,
+    amass_root: str,
+    v3d_root: str,
     smpl_model: str,
     imu_names: list,
     output_dir: str,
     subjects: list = None,
-    activities: list = None,
-    trials: list = None,
+    activity_indices: list = None,
     window: int = 128,
     stride: int = 32,
     d_model: int = 256,
@@ -122,12 +123,12 @@ def train(
     # ------------------------------------------------------------------
     print("=== Loading MoVi data ===")
     dataset = SimulatorDataset.from_movi(
-        movi_root=movi_root,
+        amass_root=amass_root,
+        v3d_root=v3d_root,
         smpl_model_path=smpl_model,
         imu_names=imu_names,
         subjects=subjects,
-        activities=activities,
-        trials=trials,
+        activity_indices=activity_indices,
         window=window,
         stride=stride,
         device=device,
@@ -262,8 +263,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Train PhyNeSim neural residual corrector"
     )
-    parser.add_argument("--movi_root",  required=True,
-                        help="Root directory of MoVi dataset")
+    parser.add_argument("--amass_root", required=True,
+                        help="Root directory of AMASS BMLmovi downloads (Subject_N_F_seq_poses.npz)")
+    parser.add_argument("--v3d_root",   required=True,
+                        help="Root directory of MoVi v3d data (F_v3d_Subject_N.mat)")
     parser.add_argument("--smpl_model", required=True,
                         help="Path to SMPL model directory (contains SMPL_NEUTRAL.pkl)")
     parser.add_argument("--imu_names",  nargs="+",
@@ -271,9 +274,10 @@ def main():
                                  "RHD","LHD","RTH","LTH","RSH","LSH","RFT","LFT"],
                         help="IMU sensor names to use")
     parser.add_argument("--output_dir", default="output/checkpoints")
-    parser.add_argument("--subjects",   nargs="+", default=None)
-    parser.add_argument("--activities", nargs="+", default=None)
-    parser.add_argument("--trials",     nargs="+", type=int, default=None)
+    parser.add_argument("--subjects",          nargs="+", type=int, default=None,
+                        help="Subject numbers to use (1-90). Default: subjects 1-60.")
+    parser.add_argument("--activity_indices",  nargs="+", type=int, default=None,
+                        help="Activity indices to use (0-20). Default: all 21.")
     parser.add_argument("--window",     type=int,   default=128)
     parser.add_argument("--stride",     type=int,   default=32)
     parser.add_argument("--d_model",    type=int,   default=256)
@@ -293,13 +297,13 @@ def main():
     args = parser.parse_args()
 
     train(
-        movi_root=args.movi_root,
+        amass_root=args.amass_root,
+        v3d_root=args.v3d_root,
         smpl_model=args.smpl_model,
         imu_names=args.imu_names,
         output_dir=args.output_dir,
         subjects=args.subjects,
-        activities=args.activities,
-        trials=args.trials,
+        activity_indices=args.activity_indices,
         window=args.window,
         stride=args.stride,
         d_model=args.d_model,

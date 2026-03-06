@@ -95,7 +95,8 @@ python pipeline/run.py \
 
 ```bash
 python -m nn.train \
-    --movi_root   /data/MoVi \
+    --amass_root  /data/MoVi/amass \
+    --v3d_root    /data/MoVi/v3d \
     --smpl_model  path/to/smpl/models \
     --output_dir  output/checkpoints \
     --epochs      100
@@ -169,19 +170,26 @@ acc_LLA, gyro_LLA = virtual_IMU_dict["LLA"]  # torch.Tensor (T, 3)
 
 ### Training — MoVi
 
-90 subjects × 20 activities × 5 trials. SMPL fits + 17 synchronized IMUs.
+90 subjects × 21 activities × 1 take each. SMPL fits (AMASS BMLmovi) + Vicon kinematics (v3d).
 
-Download: https://www.biomotionlab.ca/movi/
+Download:
+- AMASS BMLmovi: https://amass.is.tue.mpg.de/ → BMLmovi subset
+- v3d Vicon data: https://www.biomotionlab.ca/movi/
 
 Expected directory structure:
 
 ```
-movi/
-    F_Subject01/
-        F_Subject01_walk01_poses.npz   ← SMPL fits (AMASS format)
-        F_Subject01_walk01_v3d.pkl     ← IMU data
-    F_Subject02/
-    ...
+/data/MoVi/
+    amass/                          ← --amass_root
+        Subject_1_F_1_poses.npz    ← subject 1, activity 1 (kicking)
+        Subject_1_F_2_poses.npz    ← subject 1, activity 2
+        ...
+        Subject_90_F_21_poses.npz
+    v3d/                            ← --v3d_root
+        F_v3d_Subject_1.mat        ← all 21 activities for subject 1
+        F_v3d_Subject_2.mat
+        ...
+        F_v3d_Subject_90.mat
 ```
 
 ### Test — TotalCapture
@@ -287,7 +295,7 @@ Different sources run at different rates:
 
 | Source | SMPL rate | IMU rate |
 |--------|-----------|----------|
-| MoVi | 60 Hz | 100 Hz |
+| MoVi | 120 Hz | 120 Hz |
 | TotalCapture | 60 Hz | 60 Hz |
 | EMDB | 60 Hz | 60 Hz |
 | HMR2.0 (video) | 30 Hz | — |
@@ -297,14 +305,13 @@ Use `pipeline/resample.py` to align them before feeding into WIMUSim:
 ```python
 from pipeline.resample import align_to_smpl_rate
 
-# MoVi: downsample IMU 100 Hz → 60 Hz
-global_orient, body_pose, imu_dict, hz = align_to_smpl_rate(
-    global_orient, body_pose, imu_dict, smpl_hz=60, imu_hz=100
-)
+# MoVi: already aligned at 120 Hz — no resampling needed
 
-# Video (HMR2.0): upsample SMPL 30 Hz → 60 Hz, then downsample IMU
+# TotalCapture / EMDB: both at 60 Hz — no resampling needed
+
+# Video (HMR2.0): upsample SMPL 30 Hz → 60 Hz
 global_orient, body_pose, imu_dict, hz = align_to_smpl_rate(
-    global_orient, body_pose, imu_dict, smpl_hz=60, imu_hz=100, video_hz=30
+    global_orient, body_pose, imu_dict, smpl_hz=60, imu_hz=60, video_hz=30
 )
 ```
 
@@ -350,7 +357,8 @@ Epoch  50  train 0.1203  val 0.1389  (+63.8% vs physics)
 
 ```bash
 python -m nn.train \
-    --movi_root  /data/MoVi \
+    --amass_root /data/MoVi/amass \
+    --v3d_root   /data/MoVi/v3d \
     --smpl_model path/to/smpl/models \
     --imu_names  HED STER PELV RUA LUA RLA LLA RHD LHD RTH LTH RSH LSH RFT LFT \
     --output_dir output/checkpoints \
@@ -430,7 +438,7 @@ PhyNeSim/
 │   ├── run.py                 End-to-end: video → virtual IMU (CLI)
 │   ├── resample.py            Sample rate alignment (SLERP + linear interp)
 │   └── evaluate.py            Evaluation metrics (RMSE, MAE, Pearson)
-├── nn/                        Neural residual corrector (smpl-nn branch)
+├── nn/                        Neural residual corrector
 │   ├── model.py               NeuralSimulator (Transformer) + rotation utils
 │   ├── dataset.py             SimulatorDataset — MoVi pose+IMU pairs
 │   ├── train.py               Training script — MoVi paired data (CLI)

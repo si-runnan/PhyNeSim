@@ -1,5 +1,6 @@
-# WIMUSim 架构改进说明
+# PhyNeSim 架构设计说明
 
+**PhyNeSim**（Physics-Neural IMU Simulator）是在原始 WIMUSim 基础上提出的新方法。
 本文档总结了相对于原始 WIMUSim（master 分支）所做的两项核心改进：
 引入 SMPL 体型模型，以及加入神经残差修正器。
 

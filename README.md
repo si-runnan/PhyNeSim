@@ -1,18 +1,18 @@
-# WIMUSim — SMPL + Neural Network Branch
+# PhyNeSim — Physics-Neural IMU Simulator
 
-WIMUSim is a physics-based IMU simulation framework.
-This branch (`smpl-nn`) extends the `smpl` branch with a **neural residual corrector**
-that reduces the sim-to-real gap in WIMUSim's physics simulation.
-The network is trained on MoVi paired data (SMPL poses + real IMU) and learns
-to correct the residual between physics output and real sensor measurements.
+**PhyNeSim** (Physics-Neural IMU Simulator) is the `smpl-nn` branch of WIMUSim.
+It extends physics-based IMU simulation with a **neural residual corrector**
+that bridges the sim-to-real gap: WIMUSim provides a physics prior from SMPL body parameters;
+the neural network learns to correct the residual between physics output and real sensor measurements,
+trained on MoVi paired data (SMPL poses + real IMU).
 
 **Branch strategy**
 
-| Branch | Skeleton | Pose source | Extra |
-|--------|----------|-------------|-------|
-| `master` | H3.6M (17 joints) | MotionBERT | — |
-| `smpl` | SMPL (24 joints) | HMR2.0 / 4D-Humans | simulation only |
-| `smpl-nn` ← you are here | SMPL (24 joints) | HMR2.0 / 4D-Humans | + neural residual corrector |
+| Branch | Method | Skeleton | Extra |
+|--------|--------|----------|-------|
+| `master` | WIMUSim | H3.6M (17 joints) | — |
+| `smpl` | WIMUSim + SMPL | SMPL (24 joints) | physics simulation only |
+| `smpl-nn` ← you are here | **PhyNeSim** | SMPL (24 joints) | + neural residual corrector |
 
 ---
 
@@ -281,14 +281,14 @@ SMPL rotation matrices are resampled with SLERP; IMU signals use linear interpol
 
 ---
 
-## Neural Residual Corrector for WIMUSim
+## PhyNeSim: Neural Residual Corrector
 
 Physics-based simulation has a **sim-to-real gap**: WIMUSim's rigid-body model
 cannot perfectly replicate soft-tissue artefacts, non-linear sensor characteristics,
 and complex noise patterns found in real IMUs.
 
-The `nn/` package provides a Transformer-based **neural residual corrector**
-trained on MoVi paired data (SMPL poses + real IMU) to bridge this gap.
+The `nn/` package implements the **PhyNeSim** neural residual corrector —
+a Transformer trained on MoVi paired data (SMPL poses + real IMU) to bridge this gap.
 
 ### How it works
 

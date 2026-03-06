@@ -1,8 +1,9 @@
 """
-Training script for the WIMUSim neural residual corrector.
+PhyNeSim training script.
 
-The network learns to predict the residual between WIMUSim physics output
-and real IMU signals, trained on MoVi paired data (SMPL poses + real IMU).
+Trains the PhyNeSim neural residual corrector: the network learns to predict
+the residual between WIMUSim physics output and real IMU signals,
+using MoVi paired data (SMPL poses + real IMU).
 
 Usage:
     python -m nn.train \

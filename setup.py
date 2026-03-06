@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="wimusim",
     version="0.2.0",
-    description="WIMUSim — Wearable IMU Simulation Framework (SMPL branch)",
+    description="PhyNeSim — Physics-Neural IMU Simulator (WIMUSim + SMPL + neural residual corrector)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/si-runnan/WIMUSim",

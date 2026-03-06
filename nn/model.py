@@ -1,5 +1,8 @@
 """
-Neural residual corrector for WIMUSim IMU simulation.
+PhyNeSim — neural residual corrector for WIMUSim IMU simulation.
+
+PhyNeSim (Physics-Neural IMU Simulator) improves WIMUSim's physics-based
+IMU simulation by learning the residual between simulated and real sensor signals.
 
 Motivation:
     WIMUSim uses physics-based simulation (rigid body dynamics, gravity model)

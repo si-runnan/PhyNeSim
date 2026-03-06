@@ -1,11 +1,11 @@
 """
-Dataset for training the WIMUSim neural residual corrector.
+PhyNeSim dataset — training data for the neural residual corrector.
 
 Each sample pairs SMPL pose features with:
     - WIMUSim physics output (from simulate())
     - Real IMU signals (from MoVi or other datasets with ground truth)
 
-The network learns:
+PhyNeSim learns:
     real_imu ≈ phys_imu + NN(pose_6d, phys_imu)
 
 Data flow:

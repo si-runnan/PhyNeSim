@@ -1,8 +1,8 @@
 """
-Inference: augment WIMUSim physics simulation with neural correction.
+PhyNeSim inference — augment WIMUSim physics simulation with neural correction.
 
-Given SMPL poses, runs WIMUSim physics first, then applies the neural
-residual corrector to produce more accurate virtual IMU signals.
+Given SMPL poses, PhyNeSim runs WIMUSim physics first, then applies the
+neural residual corrector to produce more accurate virtual IMU signals.
 
 Usage:
     python -m nn.infer \

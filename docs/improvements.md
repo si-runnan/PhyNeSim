@@ -103,7 +103,7 @@ Epoch  50  train 0.1203  val 0.1389  (+63.8% vs physics)
 神经残差修正器的性能可量化衡量 WIMUSim 的仿真质量：
 
 > 物理仿真越准确，残差越小，网络越容易学习，
-> 最终在真实测试集（TotalCapture、EMDB）上的性能越好。
+> 最终在真实测试集（MoVi subjects 61–90）上的性能越好。
 
 这为 WIMUSim 框架本身提供了一个客观的评估指标。
 
@@ -140,6 +140,5 @@ SMPL 保证了物理仿真的准确性上限；神经修正器在此基础上进
 
 | 数据集 | 用途 | 原因 |
 |--------|------|------|
-| MoVi | 参数识别 + 神经网络训练 | 唯一同时提供 SMPL fits 和真实 IMU 的大规模数据集 |
-| TotalCapture | 测试 | 标准 IMU 基准数据集，13 个传感器，室内受控环境 |
-| EMDB | 测试 | 户外真实场景，验证 sim-to-real 迁移的泛化性 |
+| MoVi subjects 1–60 | 参数识别 + 神经网络训练 | 同时提供 SMPL fits（F_amass）和真实 Xsens IMU，90 人 × 21 动作，配对数据规模充足 |
+| MoVi subjects 61–90 | 测试 | 与训练集同源但受试者不重叠，保证评估的独立性；直接用 `scripts/evaluate.py` 运行 |

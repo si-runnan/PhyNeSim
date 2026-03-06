@@ -7,9 +7,13 @@ neural residual corrector to produce more accurate virtual IMU signals.
 Usage:
     python -m nn.infer \
         --checkpoint  output/checkpoints/best.pt \
-        --smpl_npz    /data/movi/F_Subject01/F_Subject01_walk01_poses.npz \
+        --smpl_npz    smpl_params.npz \
         --smpl_model  path/to/smpl/models \
         --output      output/corrected_imu.npz
+
+    The .npz file must contain: betas, global_orient, body_pose.
+    Optionally: trans (T,3) root translation in metres — strongly recommended
+    for correct accelerometer simulation.
 
 Or use as a drop-in replacement for WIMUSim.simulate() in Python:
 
@@ -182,14 +186,19 @@ def main():
 
     # Load SMPL params
     data = np.load(args.smpl_npz)
-    betas        = data["betas"]
+    betas         = data["betas"]
     global_orient = data["global_orient"]
-    body_pose    = data["body_pose"]
+    body_pose     = data["body_pose"]
+    trans         = data["trans"] if "trans" in data else None
 
     # Build WIMUSim params
     B_rp = compute_B_from_beta(betas, smpl_model_path=args.smpl_model,
                                 gender=args.gender)
     orientation = smpl_pose_to_D_orientation(global_orient, body_pose)
+
+    if trans is None:
+        print("Warning: 'trans' not found in SMPL .npz — translation set to zeros. "
+              "Simulated accelerometer will not include translational motion.")
 
     def _to_tensor(d):
         return {k: torch.tensor(v, dtype=torch.float32, device=device)
@@ -201,6 +210,8 @@ def main():
     B = WIMUSim.Body(rp=_to_tensor(B_rp), device=device)
     D = WIMUSim.Dynamics(
         orientation=_to_tensor(orientation),
+        translation={"XYZ": torch.tensor(trans, dtype=torch.float32, device=device)}
+                    if trans is not None else None,
         sample_rate=args.sample_rate,
         device=device,
     )

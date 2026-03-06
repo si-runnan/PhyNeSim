@@ -221,9 +221,9 @@ class SimulatorDataset(Dataset):
 
         Args:
             amass_root:       Root of AMASS BMLmovi download.
-                              Expected layout: Subject_{N}_{G}_MoSh/shape.npz
-                                               Subject_{N}_{G}_{seq}_poses.npz
-            v3d_root:         Root containing F/M_v3d_Subject_N.mat files.
+                              Expected layout: Subject_{N}_F_{seq}_poses.npz
+                                               (seq = 1..21, one file per activity)
+            v3d_root:         Root containing F_v3d_Subject_N.mat files.
             smpl_model_path:  Path to SMPL model directory (for compute_B_from_beta).
             imu_names:        IMU sensor names to include (subset of IMU_NAMES).
             subjects:         List of subject numbers (integers 1-90).
@@ -259,7 +259,10 @@ class SimulatorDataset(Dataset):
                     real_imu_dict = load_imu_data(
                         v3d_root, subject_num, act_idx, imu_names
                     )
-                except (FileNotFoundError, KeyError, Exception):
+                except FileNotFoundError:
+                    continue  # Missing file — expected for incomplete datasets
+                except Exception as e:
+                    print(f"  Warning: subject {subject_num} activity {act_idx} skipped: {e}")
                     continue
 
                 # Build WIMUSim parameters

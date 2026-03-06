@@ -1,18 +1,18 @@
 # PhyNeSim — Physics-Neural IMU Simulator
 
-**PhyNeSim** (Physics-Neural IMU Simulator) is the `smpl-nn` branch of WIMUSim.
-It extends physics-based IMU simulation with a **neural residual corrector**
-that bridges the sim-to-real gap: WIMUSim provides a physics prior from SMPL body parameters;
+**PhyNeSim** (Physics-Neural IMU Simulator) extends physics-based IMU simulation
+with a **neural residual corrector** that bridges the sim-to-real gap:
+WIMUSim provides a physics prior from SMPL body parameters;
 the neural network learns to correct the residual between physics output and real sensor measurements,
 trained on MoVi paired data (SMPL poses + real IMU).
 
-**Branch strategy**
+**Branch history**
 
 | Branch | Method | Skeleton | Extra |
 |--------|--------|----------|-------|
-| `master` | WIMUSim | H3.6M (17 joints) | — |
+| `legacy-h36m` | WIMUSim (original) | H3.6M (17 joints) | — |
 | `smpl` | WIMUSim + SMPL | SMPL (24 joints) | physics simulation only |
-| `smpl-nn` ← you are here | **PhyNeSim** | SMPL (24 joints) | + neural residual corrector |
+| `master` ← **this branch** | **PhyNeSim** | SMPL (24 joints) | + neural residual corrector |
 
 ---
 

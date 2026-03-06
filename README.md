@@ -1,37 +1,261 @@
-# WIMUSim: Wearable IMU Simulation Framework
+# WIMUSim — SMPL Branch
 
-WIMUSim models wearable IMU data using four key parameters: \textit{Body (B)}, \textit{Dynamics (D)}, \textit{Placement (P)}, and \textit{Hardware (H)}. These parameters are designed to reflect the real-world variabilities that affect wearable IMU data, offering an intuitive and physically plausible wearable IMU simulation framework.
+WIMUSim is a physics-based IMU simulation framework.
+This branch (`smpl`) uses **SMPL body model** as the skeleton format,
+enabling direct integration with video-based pose estimators (HMR2.0 / 4D-Humans).
 
-- **Body (B)** defines the structural characteristics of the human body model, specifying the length of each limb to construct a skeletal representation as a directed tree. These measurements can be manually entered or derived from anthropometric databases \citep{gordon20142012, openerg} for default values.
-- **Dynamics (D)** represents the temporal sequence of movements using rotation quaternions for each joint, depicting their orientation over time relative to parent joints, alongside a sequence of 3D vectors for overall body translation. This can be extracted from motion capture data, whether sourced from IMUs or optical systems or analyzed from video sequences.
-- **Placement (P)** specifies the position and orientation of the virtual IMUs relative to their associated body joints. This parameter is specified manually based on expected sensor placement in the target environment, but it may also be varied to simulate different sensor placement scenarios.
-- **Hardware (H)** models each IMU's specific operational characteristics, such as sensor biases and noise levels. By incorporating these parameters, WIMUSim ensures that the generated virtual IMU data accurately reflects real-world IMU performances. These parameters can be manually specified based on device specifications.
+**Branch strategy**
 
-WIMUSim is designed to be used as follows:
-- **Data Collection**: Prepare real IMU data and preliminary WIMUSim parameters. The \textit{B} and \textit{D} can be derived from various motion capture technologies, including optical-based, IMU-based, or video-based techniques. The \textit{P} is manually specified to indicate where the real IMU is placed. The \textit{H} can be obtained from device specifications or data collected at stationary positions. At this point, these parameters can be rough estimates.
-- **High Fidelity Parameter Identification**: Optimize these preliminary parameters by minimizing the error between the real and virtual IMU data to ensure that WIMUSim accurately parametrizes the real IMU data. This optimization is performed using a gradient descent-based method to minimize the error between the real and virtual IMU data. (see examples/parameter_identification.ipynb)
-- **Realistic Transformation**: Adjust the parameters around their identified operating points to introduce physically plausible variabilities, generating virtual IMU data that reflects a broad range of realistic conditions. This allows for the creation of diverse and enriched datasets, enhancing the training of HAR models without requiring extensive new data collection. (see examples/parameter_transformation.ipynb)
+| Branch | Skeleton | Pose source |
+|--------|----------|-------------|
+| `master` | H3.6M (17 joints) | MotionBERT |
+| `smpl` ← you are here | SMPL (24 joints) | HMR2.0 / 4D-Humans |
 
+---
 
-## Getting Started
+## How It Works
 
-### Requirements
-- Python 3.8 or higher
-- torch (>=2.0)
-- pytorch3d (>=0.7.5)
-See notebook examples in the `examples` folder for a detailed guide on how to use WIMUSim.
-
-
-## Installation (if you want to use WIMUSim in your own project)
-```bash
-git clone https://github.com/STRCWearlab/WIMUSim.git
-pip install --dev WIMUSim
+```
+Video
+  └─ HMR2.0 / 4D-Humans          pipeline/video_to_smpl.py
+       └─ β, global_orient, body_pose
+            ├─ compute_B_from_beta(β)           → B (bone vectors)
+            └─ smpl_pose_to_D_orientation(θ)    → D (joint orientations)
+                  └─ WIMUSim(B, D, P, H)
+                        └─ simulate()           → virtual IMU (acc, gyro)
 ```
 
+**Four parameters:**
+
+| Param | Meaning | Source |
+|-------|---------|--------|
+| **B** (Body) | Bone lengths / vectors | SMPL β via `compute_B_from_beta` |
+| **D** (Dynamics) | Per-joint orientation over time | SMPL θ via `smpl_pose_to_D_orientation` |
+| **P** (Placement) | Where each IMU sits on the body | Default or manual |
+| **H** (Hardware) | Sensor noise & bias | Default or device spec |
+
+---
+
+## Installation
+
+### 1. Clone the repo (smpl branch)
+
+```bash
+git clone -b smpl https://github.com/si-runnan/WIMUSim.git
+cd WIMUSim
+pip install -e .
+```
+
+### 2. Core dependencies
+
+```bash
+pip install torch torchvision
+pip install pytorch3d          # follow https://github.com/facebookresearch/pytorch3d
+pip install smplx scipy pandas
+```
+
+### 3. HMR2.0 / 4D-Humans (for video input)
+
+```bash
+pip install git+https://github.com/shubham-goel/4D-Humans.git
+pip install git+https://github.com/facebookresearch/detectron2.git
+```
+
+### 4. Download SMPL model files
+
+1. Register at https://smpl.is.tue.mpg.de/ and download **SMPL_python_v.1.1.0.zip**
+2. Extract and place the model files:
+
+```
+path/to/smpl/models/
+    SMPL_NEUTRAL.pkl
+    SMPL_MALE.pkl
+    SMPL_FEMALE.pkl
+```
+
+---
+
+## Quickstart: Video → Virtual IMU
+
+```bash
+python pipeline/run.py \
+    --video        input.mp4 \
+    --smpl_model   path/to/smpl/models \
+    --imu          LLA RLA LSH RSH PELV \
+    --output       output/imu_data.npz \
+    --csv
+```
+
+Output files:
+
+```
+output/
+    imu_data.npz     # all IMUs in one file (LLA_acc, LLA_gyro, ...)
+    LLA.csv          # per-IMU CSV (acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z)
+    RLA.csv
+    ...
+    smpl_params.npz  # intermediate SMPL parameters
+```
+
+### Available IMU positions
+
+The default placement supports these IMU names (from MoVi's 17-sensor setup):
+
+| Name | Body location |
+|------|--------------|
+| `HED` | Head |
+| `STER` | Sternum |
+| `PELV` | Pelvis |
+| `RSHO` / `LSHO` | Right / Left shoulder |
+| `RUA` / `LUA` | Right / Left upper arm |
+| `RLA` / `LLA` | Right / Left forearm |
+| `RHD` / `LHD` | Right / Left hand |
+| `RTH` / `LTH` | Right / Left thigh |
+| `RSH` / `LSH` | Right / Left shin |
+| `RFT` / `LFT` | Right / Left foot |
+
+### Use in Python
+
+```python
+from pipeline.run import run
+
+virtual_IMU_dict = run(
+    video_path="input.mp4",
+    smpl_model_path="path/to/smpl/models",
+    imu_names=["LLA", "RLA", "LSH", "RSH"],
+    output_path="output/imu_data.npz",
+)
+
+acc_LLA, gyro_LLA = virtual_IMU_dict["LLA"]  # torch.Tensor (T, 3)
+```
+
+---
+
+## Datasets
+
+### Training — MoVi
+
+90 subjects × 20 activities × 5 trials. SMPL fits + 17 synchronized IMUs.
+
+Download: https://www.biomotionlab.ca/movi/
+
+Expected directory structure:
+
+```
+movi/
+    F_Subject01/
+        F_Subject01_walk01_poses.npz   ← SMPL fits (AMASS format)
+        F_Subject01_walk01_v3d.pkl     ← IMU data
+    F_Subject02/
+    ...
+```
+
+### Test — TotalCapture
+
+5 subjects, 13 IMUs, indoor lab setting.
+
+Download: https://cvssp.org/data/totalcapture/
+
+> Note: SMPL fits are not included in the original release.
+> Obtain them by running SMPLify-X on the provided MoCap data,
+> then save as `{subject}/{activity}/smpl.npz` and `imu.pkl`.
+
+### Test — EMDB
+
+9 subjects, 6 IMUs, outdoor in-the-wild sequences.
+
+Download: https://ait.ethz.ch/emdb
+
+Expected structure:
+
+```
+emdb/
+    EMDB_1/          ← indoor
+        P1/
+            sequence_01.pkl
+    EMDB_2/          ← outdoor (use as test set)
+        P1/
+            sequence_01.pkl
+```
+
+---
+
+## Parameter Identification (fitting to real IMU data)
+
+When you have a dataset with synchronized video + real IMU (e.g. MoVi),
+you can optimize WIMUSim parameters to match the real sensor output.
+
+Open and run:
+
+```
+examples/parameter_identification.ipynb
+```
+
+This minimizes the error between WIMUSim's simulated IMU and the real IMU
+by gradient descent over B, D, P, and H.
+
+---
+
+## Data Augmentation with CPM
+
+After parameter identification, use **Comprehensive Parameter Mixing (CPM)**
+to generate large-scale diverse virtual IMU training data.
+
+Open and run:
+
+```
+examples/parameter_transformation.ipynb
+```
+
+CPM mixes B/D/P/H across subjects to simulate different body shapes,
+motions, sensor placements, and hardware characteristics.
+
+---
+
+## Example Notebooks
+
+| Notebook | What it does |
+|----------|-------------|
+| `examples/generate_D_from_3d_pose.ipynb` | Load MoVi SMPL data → simulate virtual IMU |
+| `examples/parameter_identification.ipynb` | Fit WIMUSim params to real MoVi IMU data |
+| `examples/parameter_transformation.ipynb` | CPM data augmentation for model training |
+
+---
+
+## Project Structure
+
+```
+WIMUSim/
+├── wimusim/                   Core simulation engine
+│   ├── wimusim.py             WIMUSim class (B, D, P, H → IMU)
+│   ├── optimizer.py           Gradient-based parameter identification
+│   └── datasets.py            CPM dataset class
+├── dataset_configs/
+│   ├── smpl/                  SMPL format converters
+│   │   ├── consts.py          24-joint skeleton definitions
+│   │   └── utils.py           compute_B_from_beta, smpl_pose_to_D_orientation
+│   ├── movi/                  MoVi dataset (train)
+│   ├── totalcapture/          TotalCapture dataset (test)
+│   └── emdb/                  EMDB dataset (test)
+├── pipeline/
+│   ├── video_to_smpl.py       HMR2.0 wrapper: video → SMPL params
+│   └── run.py                 End-to-end: video → virtual IMU
+└── examples/                  Jupyter notebooks
+```
+
+---
 
 ## Citation
 
+```bibtex
+@article{xxxx,
+  title   = {WIMUSim: Wearable IMU Simulation Framework},
+  author  = {xxxx},
+  journal = {xxxx},
+  year    = {xxxx}
+}
+```
 
 ## License
-Apache License 2.0
 
+Apache License 2.0

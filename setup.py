@@ -9,7 +9,7 @@ setuptools.setup(
     description="PhyNeSim — Physics-Neural IMU Simulator (WIMUSim + SMPL + neural residual corrector)",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/si-runnan/WIMUSim",
+    url="https://github.com/si-runnan/PhyNeSim",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -46,26 +46,6 @@ from wimusim import WIMUSim, utils
 def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
                   placement_fn, sample_rate, smpl_model, checkpoint, device):
     """Simulate one sequence. Returns {imu_name: (acc, gyro)}."""
-    B_rp        = compute_B_from_beta(betas, smpl_model_path=smpl_model)
-    orientation = smpl_pose_to_D_orientation(global_orient, body_pose)
-    P_params    = placement_fn(B_rp)
-    H           = utils.generate_default_H_configs(imu_names)
-
-    if checkpoint is None:
-        env = WIMUSim(
-            B={"rp": B_rp},
-            D={"orientation": orientation,
-               "translation": {"XYZ": trans},
-               "sample_rate": sample_rate},
-            P=P_params,
-            H=H,
-            dataset_name="SMPL",
-            device=device,
-        )
-        return env.simulate(mode="generate")
-
-    # Neural-corrected path
-    from nn.infer import corrected_simulate
     dev = torch.device(device)
 
     def _t(v):
@@ -73,7 +53,15 @@ def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
             return torch.tensor(v, dtype=torch.float32, device=dev)
         return v.to(dev) if isinstance(v, torch.Tensor) else v
 
-    B_obj = WIMUSim.Body(rp={k: _t(v) for k, v in B_rp.items()}, device=dev)
+    B_rp        = compute_B_from_beta(betas, smpl_model_path=smpl_model)
+    orientation = smpl_pose_to_D_orientation(global_orient, body_pose)
+    P_params    = placement_fn(B_rp)
+    H_cfg       = utils.generate_default_H_configs(imu_names)
+
+    B_obj = WIMUSim.Body(
+        rp={k: _t(v) for k, v in B_rp.items()},
+        device=dev,
+    )
     D_obj = WIMUSim.Dynamics(
         orientation={k: _t(v) for k, v in orientation.items()},
         translation={"XYZ": _t(trans)},
@@ -85,12 +73,17 @@ def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
         ro={k: _t(v) for k, v in P_params["ro"].items()},
         device=dev,
     )
-    _H = utils.generate_default_H_configs(imu_names)
     H_obj = WIMUSim.Hardware(
-        ba=_H["ba"], bg=_H["bg"], sa=_H["sa"], sg=_H["sg"],
-        sa_range_dict=_H["sa_range_dict"], sg_range_dict=_H["sg_range_dict"],
+        ba=H_cfg["ba"], bg=H_cfg["bg"], sa=H_cfg["sa"], sg=H_cfg["sg"],
+        sa_range_dict=H_cfg["sa_range_dict"], sg_range_dict=H_cfg["sg_range_dict"],
     )
 
+    if checkpoint is None:
+        env = WIMUSim(B=B_obj, D=D_obj, P=P_obj, H=H_obj)
+        return env.simulate(mode="generate")
+
+    # Neural-corrected path
+    from nn.infer import corrected_simulate
     return corrected_simulate(
         checkpoint=checkpoint, B=B_obj, D=D_obj, P=P_obj, H=H_obj,
         device=dev,

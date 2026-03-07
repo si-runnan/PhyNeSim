@@ -129,6 +129,8 @@ class SimulatorDataset(Dataset):
         for D, real_imu_dict, B, P, H in tqdm(self.sequences):
             # Physics simulation
             env = WIMUSim(B=B, D=D, P=P, H=H)
+            if isinstance(env.E.g, torch.Tensor):
+                env.E.g = env.E.g.to(self.device)
             virt = env.simulate(mode="generate")   # {name: (acc, gyro)}
 
             # Available names: must be present in physics output, real IMU dict,
@@ -326,6 +328,7 @@ class SimulatorDataset(Dataset):
                     device=device_,
                 )
                 H = wu.generate_default_H_configs(imu_names)
+                H["device"] = device_
 
                 sequences.append((D, real_imu_dict, B, P, H))
 

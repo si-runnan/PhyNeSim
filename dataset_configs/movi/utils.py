@@ -413,8 +413,8 @@ def generate_default_placement_params(B_rp: dict) -> dict:
         return B_rp.get((p, c), np.zeros(3))
 
     # Head
-    rp[("HEAD",       "HED")]  = np.array([0.0,  0.0,  0.05])
-    ro[("HEAD",       "HED")]  = np.deg2rad(np.array([0.0, 0.0, 0.0]))
+    rp[("NECK",       "HED")]  = np.array([0.0,  0.0,  0.05])
+    ro[("NECK",       "HED")]  = np.deg2rad(np.array([0.0, 0.0, 0.0]))
 
     # Sternum
     rp[("SPINE3",     "STER")] = np.array([0.0,  0.1,  0.0])

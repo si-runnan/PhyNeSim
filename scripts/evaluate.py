@@ -237,7 +237,7 @@ def main():
     )
 
     print(f"\n{'=' * 55}")
-    print(f"  {args.dataset.upper()}  [{mode}]  — Overall Mean")
+    print(f"  MoVi  [{mode}]  — Overall Mean")
     print(f"{'=' * 55}")
     print(summary.round(4).to_string())
 

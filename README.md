@@ -14,6 +14,11 @@ trained on MoVi paired data (SMPL poses + real IMU).
 | `smpl` | WIMUSim + SMPL | SMPL (24 joints) | physics simulation only |
 | `master` ← **this branch** | **PhyNeSim** | SMPL (24 joints) | + neural residual corrector |
 
+**Improvements over the original WIMUSim:**
+- Replaced H3.6M skeleton with parametric SMPL body model (24 joints + shape β)
+- Added Transformer-based neural residual corrector trained on MoVi paired data
+- Python 3.10+ compatibility: SMPL model files converted from chumpy to pure numpy (`smpl/convert_smpl.py`)
+
 ---
 
 ## How It Works
@@ -64,17 +69,36 @@ pip install git+https://github.com/shubham-goel/4D-Humans.git
 pip install git+https://github.com/facebookresearch/detectron2.git
 ```
 
-### 4. Download SMPL model files
+### 4. Download and convert SMPL model files
 
 1. Register at https://smpl.is.tue.mpg.de/ and download **SMPL_python_v.1.1.0.zip**
-2. Extract and place the model files:
+2. Extract and rename the model files, then place them under `smpl/models/smpl/`:
 
 ```
-path/to/smpl/models/
+smpl/models/smpl/
     SMPL_NEUTRAL.pkl
-    SMPL_MALE.pkl
-    SMPL_FEMALE.pkl
+    SMPL_MALE.pkl      (optional)
+    SMPL_FEMALE.pkl    (optional)
 ```
+
+3. **Convert to Python 3 compatible format** (required — official files use the
+   unmaintained `chumpy` library which cannot be installed on Python 3.10+):
+
+```bash
+# Create a temporary conversion environment with chumpy support
+conda create -n smpl_convert python=3.8 numpy=1.23 scipy -y
+conda activate smpl_convert
+pip install chumpy
+
+# Convert in-place (rewrites pkl files to pure numpy format)
+python smpl/convert_smpl.py
+
+conda deactivate
+```
+
+After conversion the pkl files work with any modern Python / numpy version and
+`chumpy` is no longer needed. The conversion script (`smpl/convert_smpl.py`)
+is idempotent — running it on already-converted files is safe.
 
 ---
 

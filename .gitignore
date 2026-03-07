@@ -185,3 +185,16 @@ fabric.properties
 # .idea
 # Sample dataset files (local only)
 数据集示例/
+
+# SMPL model files (license-restricted, not for redistribution)
+smpl/models/
+
+# Large data archives
+*.tar
+*.tar.gz
+*.zip
+*.mat
+
+# Output / results
+output/
+results/

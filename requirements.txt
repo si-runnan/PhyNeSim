@@ -1,26 +1,31 @@
-# WIMUSim — SMPL branch dependencies
-# Install core deps first:
-#   pip install -r requirements.txt
+# PhyNeSim dependencies
 #
-# Then install torch + pytorch3d via conda (recommended):
-#   conda install pytorch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 \
-#       pytorch-cuda=11.8 -c pytorch -c nvidia
-#   conda install -c fvcore -c iopath -c conda-forge fvcore iopath
-#   conda install pytorch3d -c pytorch3d
+# Tested environment: Python 3.10, PyTorch 2.10 + CUDA 12.8, RTX 5090
+#
+# Step 1 — Install PyTorch (CUDA 12.8, required for RTX 50-series / Ada Lovelace+)
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+#
+# Step 2 — Install PyTorch3D from source (no pre-built wheel for CUDA 12.8 yet)
+#   conda install -c nvidia cuda-toolkit=12.8 -y
+#   git clone https://github.com/facebookresearch/pytorch3d.git
+#   pip install -e ./pytorch3d --no-build-isolation
+#
+# Step 3 — Install remaining deps
+#   pip install -r requirements.txt
 #
 # For video → SMPL (optional, only needed for pipeline/video_to_smpl.py):
 #   pip install git+https://github.com/shubham-goel/4D-Humans.git
 #   pip install git+https://github.com/facebookresearch/detectron2.git
 
 # Core scientific stack
-numpy>=1.23.0
+numpy>=2.0.0
 scipy>=1.10.0
 pandas>=1.5.0
 
-# Deep learning (installed separately via conda — see above)
-torch>=2.0.0
-torchvision>=0.15.0
-pytorch3d>=0.7.5
+# Deep learning (installed separately — see above)
+torch>=2.10.0
+torchvision>=0.25.0
+pytorch3d>=0.7.9
 
 # SMPL body model
 smplx>=0.1.28

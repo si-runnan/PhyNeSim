@@ -17,25 +17,25 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "numpy",
-        "pandas",
+        "numpy>=2.0.0",
+        "pandas>=1.5.0",
         "requests",
-        "pybullet",
-        "scipy",
-        "tqdm",
-        "wandb",
-        # torch and pytorch3d better to be installed via conda
-        # conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia
-        # conda install -c fvcore -c iopath -c conda-forge fvcore iopath
-        # conda install pytorch3d -c pytorch3d
-        "torch",
-        "pytorch3d",
+        "pybullet>=3.2.5",
+        "scipy>=1.10.0",
+        "tqdm>=4.65.0",
+        "wandb>=0.15.0",
+        "smplx>=0.1.28",
+        "matplotlib>=3.7.0",
+        # torch and pytorch3d must be installed manually before pip install -e .
+        # See requirements.txt for instructions (CUDA 12.8 required for RTX 50-series)
+        "torch>=2.10.0",
+        "pytorch3d>=0.7.9",
     ],
     extras_require={
         "dev": [
-            "jupyterlab",
-            "pytest>=6.0.2"
+            "jupyterlab>=4.0.0",
+            "pytest>=7.0.0",
         ]
     },
-    python_requires='>=3.8',
+    python_requires='>=3.10',
 )

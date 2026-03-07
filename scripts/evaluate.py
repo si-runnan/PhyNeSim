@@ -78,10 +78,13 @@ def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
     H_obj = WIMUSim.Hardware(
         ba=H_cfg["ba"], bg=H_cfg["bg"], sa=H_cfg["sa"], sg=H_cfg["sg"],
         sa_range_dict=H_cfg["sa_range_dict"], sg_range_dict=H_cfg["sg_range_dict"],
+        device=dev,
     )
 
     if checkpoint is None:
         env = WIMUSim(B=B_obj, D=D_obj, P=P_obj, H=H_obj)
+        if isinstance(env.E.g, torch.Tensor):
+            env.E.g = env.E.g.to(dev)
         return env.simulate(mode="generate")
 
     # Neural-corrected path

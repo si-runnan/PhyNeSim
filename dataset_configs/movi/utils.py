@@ -367,15 +367,23 @@ def load_xsens_imu(xsens_root: str, subject_num: int, activity_idx: int,
     # Build reverse map: wimusim_name → xsens_joint_name
     imu_to_xsens = {v: k for k, v in XSENS_JOINT_TO_IMU.items()}
 
+    # Coordinate transform: Xsens/Noitom sensor frame → WIMUSim frame
+    # Xsens X → WIMUSim -Z,  Xsens Y → WIMUSim +X,  Xsens Z → WIMUSim -Y
+    _R_xs2wm = np.array([[0, 1, 0],
+                          [0, 0, -1],
+                          [-1, 0, 0]], dtype=np.float32)
+
     imu_dict_100hz = {}
     for imu_name in requested:
         joint_name = imu_to_xsens.get(imu_name)
         if joint_name is None or joint_name not in joint_base:
             continue
         base = joint_base[joint_name]
-        # A channels (g) → m/s²
+        # A channels (g) → m/s², then rotate to WIMUSim frame
         acc  = act_data[:, base + 10 : base + 13].astype(np.float32) * 9.81
         gyro = act_data[:, base + 13 : base + 16].astype(np.float32)
+        acc  = acc  @ _R_xs2wm.T   # (T, 3)
+        gyro = gyro @ _R_xs2wm.T   # (T, 3)
         imu_dict_100hz[imu_name] = (acc, gyro)
 
     # --- Upsample 100 Hz → 120 Hz (linear interp) ----------------------

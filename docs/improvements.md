@@ -1,3 +1,8 @@
+WIMUSim（物理基础，必引）
+Learning Residual Dynamics via Physics-Augmented Neural Networks（方法动机）
+GyroNet 或 Calib-Net（IMU 神经修正的先验工作）
+Inertial Navigation Meets Deep Learning 综述（背景介绍）
+
 # PhyNeSim 架构设计说明
 
 **PhyNeSim**（Physics-Neural IMU Simulator）是在原始 WIMUSim 基础上提出的新方法。

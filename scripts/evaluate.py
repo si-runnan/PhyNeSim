@@ -27,6 +27,7 @@ Outputs:
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -47,7 +48,7 @@ from wimusim import WIMUSim, utils
 
 def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
                   placement_fn, sample_rate, smpl_model, checkpoint, device):
-    """Simulate one sequence. Returns {imu_name: (acc, gyro)}."""
+    """Simulate one sequence. Returns ({imu_name: (acc, gyro)}, elapsed_sec, n_frames)."""
     dev = torch.device(device)
 
     def _t(v):
@@ -59,6 +60,9 @@ def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
     orientation = smpl_pose_to_D_orientation(global_orient, body_pose)
     P_params    = placement_fn(B_rp)
     H_cfg       = utils.generate_default_H_configs(imu_names)
+
+    # Number of frames (from root orientation)
+    n_frames = global_orient.shape[0]
 
     B_obj = WIMUSim.Body(
         rp={k: _t(v) for k, v in B_rp.items()},
@@ -85,14 +89,20 @@ def _run_sequence(betas, global_orient, body_pose, trans, imu_names,
         env = WIMUSim(B=B_obj, D=D_obj, P=P_obj, H=H_obj)
         if isinstance(env.E.g, torch.Tensor):
             env.E.g = env.E.g.to(dev)
-        return env.simulate(mode="generate")
+        t0 = time.perf_counter()
+        result = env.simulate(mode="generate")
+        elapsed = time.perf_counter() - t0
+        return result, elapsed, n_frames
 
     # Neural-corrected path
     from nn.infer import corrected_simulate
-    return corrected_simulate(
+    t0 = time.perf_counter()
+    result = corrected_simulate(
         checkpoint=checkpoint, B=B_obj, D=D_obj, P=P_obj, H=H_obj,
         device=dev,
     )
+    elapsed = time.perf_counter() - t0
+    return result, elapsed, n_frames
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +123,8 @@ def eval_movi(amass_root, xsens_root, v3d_root, smpl_model,
     subj_list   = subjects        if subjects         is not None else TEST_SUBJECTS
     act_indices = activity_indices if activity_indices is not None else list(range(21))
     rows = []
+    total_elapsed = 0.0
+    total_frames  = 0
 
     for subject_num in subj_list:
         for act_idx in act_indices:
@@ -136,7 +148,7 @@ def eval_movi(amass_root, xsens_root, v3d_root, smpl_model,
                 continue
 
             try:
-                virt_imu = _run_sequence(
+                virt_imu, elapsed, n_frames = _run_sequence(
                     betas, go, bp, trans, IMU_NAMES, movi_placement,
                     SMPL_SAMPLE_RATE, smpl_model, checkpoint, device,
                 )
@@ -144,11 +156,21 @@ def eval_movi(amass_root, xsens_root, v3d_root, smpl_model,
                 print(f"skipped ({e})")
                 continue
 
+            total_elapsed += elapsed
+            total_frames  += n_frames
+
             df = evaluate(virt_imu, real_imu)
             df["subject"]  = subject_num
             df["activity"] = activity_name
             rows.append(df)
-            print("done")
+            print(f"done ({elapsed*1000:.1f} ms)")
+
+    # Print speed summary
+    if total_frames > 0:
+        fps = total_frames / total_elapsed
+        ms_per_frame = total_elapsed / total_frames * 1000
+        print(f"\n  Inference speed: {fps:.1f} frames/s  ({ms_per_frame:.3f} ms/frame)")
+        print(f"  Total: {total_frames} frames in {total_elapsed:.2f}s")
 
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
